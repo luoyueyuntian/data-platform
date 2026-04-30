@@ -1,0 +1,28 @@
+{
+  "name": "@ssas/ingest",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ssas/core": "workspace:*",
+    "kafkajs": "^2.2.4",
+    "mqtt": "^5.10.0",
+    "zod": "^3.24.0"
+  }
+}

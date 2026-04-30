@@ -1,0 +1,300 @@
+// ============================================================
+// SSAS Platform - Prisma Schema
+// Database: PostgreSQL + TimescaleDB
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  schemas   = ["public", "timescale"]
+}
+
+// ============================================================
+// Tenant / Multi-tenancy
+// ============================================================
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  plan      String   @default("free") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  devices     Device[]
+  users       User[]
+  alertRules  AlertRule[]
+  dashboards  Dashboard[]
+  apiKeys     ApiKey[]
+  auditLogs   AuditLog[]
+  deviceGroups DeviceGroup[]
+
+  @@schema("public")
+  @@map("tenants")
+}
+
+// ============================================================
+// User / Authentication
+// ============================================================
+
+model User {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  email      String    @unique @db.VarChar(255)
+  name       String    @db.VarChar(255)
+  password   String?   @db.VarChar(255) // hashed, nullable for OAuth
+  role       String    @default("viewer") @db.VarChar(50) // admin | operator | analyst | viewer | custom
+  status     String    @default("active") @db.VarChar(20) // active | disabled | invited
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@unique([tenantId, email])
+  @@schema("public")
+  @@map("users")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String    @db.VarChar(255)
+  key        String    @unique @db.VarChar(255) // hashed key
+  permissions String[] @default([]) // JSON list of permission strings
+  expiresAt  DateTime? @map("expires_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+  @@map("api_keys")
+}
+
+// ============================================================
+// Device / Sensor / Group / Tag
+// ============================================================
+
+model DeviceGroup {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  parentId    String?  @map("parent_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   DeviceGroup?  @relation("GroupHierarchy", fields: [parentId], references: [id])
+  children DeviceGroup[] @relation("GroupHierarchy")
+  devices  Device[]
+
+  @@unique([tenantId, name])
+  @@schema("public")
+  @@map("device_groups")
+}
+
+model Device {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  deviceKey   String   @unique @db.VarChar(255) // unique serial number / MAC
+  type        String   @default("custom") @db.VarChar(50)
+  status      String   @default("offline") @db.VarChar(20) // online | offline | error | disabled | maintenance
+  groupId     String?  @map("group_id") @db.Uuid
+  location    Json?    // DeviceLocation: { name, lat, lng, address }
+  metadata    Json?    // arbitrary custom fields
+  phase       String   @default("registered") @db.VarChar(50) // lifecycle: registered | active | running | maintenance | retired
+  lastSeenAt  DateTime? @map("last_seen_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group    DeviceGroup? @relation(fields: [groupId], references: [id])
+  sensors  Sensor[]
+  tags     DeviceTag[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([groupId])
+  @@index([deviceKey])
+  @@schema("public")
+  @@map("devices")
+}
+
+model Sensor {
+  id           String   @id @default(uuid()) @db.Uuid
+  deviceId     String   @map("device_id") @db.Uuid
+  name         String   @db.VarChar(255)
+  type         String   @default("other") @db.VarChar(50)
+  unit         String   @db.VarChar(50)
+  rangeMin     Float?   @map("range_min")
+  rangeMax     Float?   @map("range_max")
+  precision    Int?     @map("precision")
+  calibration  Json?    // { offset: number, scale: number }
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@schema("public")
+  @@map("sensors")
+}
+
+model DeviceTag {
+  id        String   @id @default(uuid()) @db.Uuid
+  deviceId  String   @map("device_id") @db.Uuid
+  key       String   @db.VarChar(128)
+  value     String   @db.VarChar(255)
+  source    String   @default("manual") @db.VarChar(50) // manual | rule | import | computed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([key, value])
+  @@schema("public")
+  @@map("device_tags")
+}
+
+// ============================================================
+// Alert Rules & Records
+// ============================================================
+
+model AlertRule {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  conditions     Json     // AlertCondition[]: [{ metricName, operator, threshold, duration, window }]
+  conditionLogic String   @default("all") @db.VarChar(10) // all | any
+  channels       Json     // AlertChannel[]: [{ type: "webhook"|"email", config: {...} }]
+  silenceSeconds Int      @default(300) @map("silence_seconds")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  records AlertRecord[]
+
+  @@index([tenantId])
+  @@schema("public")
+  @@map("alert_rules")
+}
+
+model AlertRecord {
+  id             String    @id @default(uuid()) @db.Uuid
+  ruleId         String    @map("rule_id") @db.Uuid
+  ruleName       String    @db.VarChar(255)
+  deviceId       String?   @map("device_id") @db.Uuid
+  triggeredValue Float     @map("triggered_value")
+  severity       String    @default("warn") @db.VarChar(20) // info | warn | critical
+  message        String    @db.Text
+  status         String    @default("firing") @db.VarChar(20) // firing | resolved | acknowledged | silenced
+  triggeredAt    DateTime  @map("triggered_at")
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedBy     String?   @map("resolved_by") @db.VarChar(255)
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([triggeredAt])
+  @@schema("public")
+  @@map("alert_records")
+}
+
+// ============================================================
+// Dashboard & Panels
+// ============================================================
+
+model Dashboard {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  layout      Json?    // DashboardLayout: { columns, rowHeight }
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  panels Panel[]
+
+  @@index([tenantId])
+  @@schema("public")
+  @@map("dashboards")
+}
+
+model Panel {
+  id          String @id @default(uuid()) @db.Uuid
+  dashboardId String @map("dashboard_id") @db.Uuid
+  title       String @db.VarChar(255)
+  type        String @default("line") @db.VarChar(50) // line | bar | pie | gauge | table | heatmap | scatter | stat | area
+  query       Json   // PanelQuery: { metricNames, aggregation, granularity, filters, timeRange }
+  position    Json   // { x, y, w, h }
+  style       Json?  // custom style overrides
+
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
+  @@schema("public")
+  @@map("panels")
+}
+
+// ============================================================
+// Time-Series Data (TimescaleDB Hypertable)
+// Note: This model is defined for Prisma Client type generation.
+// The actual table is managed as a TimescaleDB hypertable via raw SQL.
+// ============================================================
+
+/// Time-series sensor data point. Stored in TimescaleDB hypertable.
+model DataPoint {
+  time       DateTime @map("time")
+  deviceId   String   @map("device_id") @db.Uuid
+  metricName String   @map("metric_name") @db.VarChar(100)
+  value      Float
+  sensorId   String?  @map("sensor_id") @db.Uuid
+  tags       Json?    // Record<string, string>
+  quality    Int      @default(100) // 0-100
+
+  @@id([time, deviceId, metricName])
+  @@index([deviceId, metricName, time])
+  @@index([deviceId, time])
+  @@schema("timescale")
+  @@map("data_points")
+}
+
+// ============================================================
+// Audit Log
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100) // e.g. "device.create", "alert.update"
+  resource   String   @db.VarChar(100) // e.g. "device", "alert_rule"
+  resourceId String?  @map("resource_id") @db.VarChar(255)
+  detail     Json?    // arbitrary event details
+  ip         String?  @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([action])
+  @@index([resource, resourceId])
+  @@schema("public")
+  @@map("audit_logs")
+}

@@ -1,0 +1,96 @@
+# ====================
+# Dependencies
+# ====================
+node_modules/
+
+# ====================
+# Build Outputs
+# ====================
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Next.js generated
+apps/web/next-env.d.ts
+
+# ====================
+# Coverage & Testing
+# ====================
+coverage/
+.nyc_output/
+*.lcov
+
+# ====================
+# Environment Variables
+# ====================
+.env
+.env.local
+.env.*.local
+.env.production
+
+# ====================
+# Logs
+# ====================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ====================
+# IDE & Editor
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ====================
+# OS Files
+# ====================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ====================
+# AI Tools
+# ====================
+.claude/
+.codex/
+.cursor/
+
+# ====================
+# Prisma
+# ====================
+prisma/*.db
+prisma/*.db-journal
+
+# ====================
+# Docker
+# ====================
+docker/services/*/data/
+*.bak
+
+# ====================
+# Temporary Files
+# ====================
+*.tmp
+*.temp
+.tmp/
+
+# ====================
+# Cache
+# ====================
+.cache/
+.eslintcache/
+.parcel-cache/
+
+# ====================
+# Misc
+# ====================
+*.pem
+*.key
+*.crt

@@ -1,0 +1,33 @@
+{
+  "name": "@ssas/database",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "@ssas/core": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "^6.5.0"
+  }
+}

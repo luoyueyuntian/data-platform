@@ -1,0 +1,14 @@
+{
+  "name": "@ssas/app-docs",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "clean": "rm -rf .vitepress/dist"
+  },
+  "dependencies": {
+    "vitepress": "^1.6.0"
+  }
+}

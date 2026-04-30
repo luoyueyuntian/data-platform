@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ssas
+      POSTGRES_PASSWORD: ssas
+      POSTGRES_DB: ssas
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: ssas
+      POSTGRES_PASSWORD: ssas
+      POSTGRES_DB: ssas_ts
+      TIMESCALEDB_TELEMETRY: off
+    ports:
+      - '5433:5432'
+    volumes:
+      - tsdbdata:/var/lib/postgresql/data
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - '1883:1883'
+      - '9001:9001'
+    volumes:
+      - ./services/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.9.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.9.1
+    depends_on:
+      - zookeeper
+    ports:
+      - '9092:9092'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  pgdata:
+  tsdbdata:
+  redisdata:

@@ -1,0 +1,32 @@
+{
+  "name": "@ssas/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./validators/*": {
+      "types": "./src/validators/*.ts",
+      "import": "./src/validators/*.ts",
+      "default": "./src/validators/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ssas/core": "workspace:*",
+    "@ssas/auth": "workspace:*",
+    "zod": "^3.24.0"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "data-platform",
+  "version": "0.0.1",
+  "private": true,
+  "description": "IoT Sensor Data Platform - 物联网传感器数据分析平台",
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "pnpm -F @ssas/database db:generate",
+    "db:migrate": "pnpm -F @ssas/database db:migrate",
+    "db:migrate:prod": "pnpm -F @ssas/database db:migrate:prod",
+    "db:studio": "pnpm -F @ssas/database db:studio",
+    "db:seed": "tsx scripts/seed.ts",
+    "setup": "bash scripts/setup.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "prisma": "^6.5.0",
+    "tsx": "^4.19.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.9"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
