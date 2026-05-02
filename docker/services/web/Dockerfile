@@ -4,10 +4,12 @@ WORKDIR /app
 
 ARG PNPM_VERSION=9.15.0
 ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV npm_config_registry=${NPM_REGISTRY}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm install -g pnpm@${PNPM_VERSION}
 

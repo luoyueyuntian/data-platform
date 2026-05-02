@@ -21,10 +21,17 @@ import { settingsRoutes } from './routes/settings.js';
 const app = new Hono();
 const port = Number(process.env.API_PORT ?? 4000);
 const host = process.env.API_HOST ?? '0.0.0.0';
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // Global middleware
 app.use('*', cors({
-  origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  origin: (origin) => {
+    if (!origin) return corsOrigins[0] ?? 'http://localhost:3000';
+    return corsOrigins.includes(origin) ? origin : '';
+  },
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   maxAge: 86400,

@@ -52,10 +52,22 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  return fetch(buildApiUrl(path), {
+  const res = await fetch(buildApiUrl(path), {
     ...init,
     headers,
   });
+
+  // Server rejected the token — clear it and redirect to login
+  if (res.status === 401 && typeof window !== 'undefined') {
+    localStorage.removeItem('ssas_token');
+    localStorage.removeItem('ssas_refresh_token');
+    const current = window.location.pathname;
+    if (current !== '/login') {
+      window.location.href = `/login?next=${encodeURIComponent(current)}`;
+    }
+  }
+
+  return res;
 }
 
 export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
@@ -64,17 +76,17 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 async function request<T>(method: string, path: string, body?: unknown, token?: string): Promise<ApiResponse<T>> {
-  const headers = new Headers();
+  const headers: Record<string, string> = {};
   if (body !== undefined) {
-    headers.set('Content-Type', 'application/json');
+    headers['Content-Type'] = 'application/json';
   }
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(buildApiUrl(path), {
+  const res = await apiFetch(path, {
     method,
-    headers: Object.fromEntries(headers.entries()),
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 

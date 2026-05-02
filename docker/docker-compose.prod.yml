@@ -12,9 +12,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       KAFKA_BROKER: kafka:9092
       MQTT_BROKER_URL: mqtt://mosquitto:1883
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-ssas-local-docker-jwt-secret-override-in-production}
       NODE_ENV: production
-      CORS_ORIGIN: ${CORS_ORIGIN}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,10 +39,11 @@ services:
       dockerfile: docker/services/web/Dockerfile
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     ports:
       - '3000:3000'
     environment:
-      NEXT_PUBLIC_API_URL: http://api:4000/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     depends_on:
       - api
     restart: unless-stopped
