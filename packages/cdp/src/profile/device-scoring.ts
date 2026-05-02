@@ -66,7 +66,7 @@ export async function getTenantScoreDistribution(tenantId: string): Promise<{
   critical: number;
   noData: number;
 }> {
-  const { buildTenantDeviceProfiles } = await import('./device-profile');
+  const { buildTenantDeviceProfiles } = await import('./device-profile.js');
   const profiles = await buildTenantDeviceProfiles(tenantId);
 
   const dist = { healthy: 0, normal: 0, warning: 0, critical: 0, noData: 0 };

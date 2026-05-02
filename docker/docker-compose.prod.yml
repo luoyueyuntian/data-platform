@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: docker/services/api/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     ports:
       - '4000:4000'
     environment:
@@ -35,6 +37,8 @@ services:
     build:
       context: ..
       dockerfile: docker/services/web/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     ports:
       - '3000:3000'
     environment:
@@ -47,6 +51,8 @@ services:
     build:
       context: ..
       dockerfile: docker/services/worker/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     environment:
       DATABASE_URL: postgresql://ssas:${DB_PASSWORD:-ssas}@postgres:5432/ssas
       REDIS_URL: redis://redis:6379/0

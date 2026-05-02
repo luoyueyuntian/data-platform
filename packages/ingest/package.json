@@ -9,12 +9,12 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./src/index.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./mqtt": {
       "types": "./dist/mqtt/index.d.ts",
-      "import": "./src/mqtt/index.ts",
+      "import": "./dist/mqtt/index.js",
       "default": "./dist/mqtt/index.js"
     }
   },

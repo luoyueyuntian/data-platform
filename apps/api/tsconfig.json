@@ -9,6 +9,11 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/api" },
     { "path": "../../packages/auth" },
-    { "path": "../../packages/database" }
+    { "path": "../../packages/database" },
+    { "path": "../../packages/ingest" },
+    { "path": "../../packages/storage" },
+    { "path": "../../packages/analytics" },
+    { "path": "../../packages/alerting" },
+    { "path": "../../packages/cdp" }
   ]
 }

@@ -87,6 +87,7 @@ docker/services/*/data/
 .cache/
 .eslintcache/
 .parcel-cache/
+.pnpm-store/
 
 # ====================
 # Misc

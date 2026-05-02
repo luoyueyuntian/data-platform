@@ -1,3 +1,3 @@
-export * from './jwt.js';
-export * from './rbac.js';
-export * from './providers.js';
+export * from './jwt/index.js';
+export * from './rbac/index.js';
+export * from './providers/index.js';

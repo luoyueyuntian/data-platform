@@ -124,4 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_data_points_device_time
   ON timescale.data_points (device_id, time DESC);
 
 -- 11. Verify setup
-SELECT * FROM timescaledb_information.hypertables WHERE table_name = 'data_points';
+SELECT *
+FROM timescaledb_information.hypertables
+WHERE hypertable_schema = 'timescale'
+  AND hypertable_name = 'data_points';

@@ -1,3 +1,3 @@
-export * from './timescale.js';
-export * from './influx.js';
-export * from './query.js';
+export * from './timescale/index.js';
+export * from './influx/index.js';
+export * from './query/index.js';

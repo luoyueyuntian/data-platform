@@ -85,7 +85,7 @@ async function evaluateCondition(deviceId: string, cond: TagCondition): Promise<
       return compare(Number(result[0]?.count ?? 0), cond.operator, cond.value);
     }
     case 'health_score': {
-      const { buildDeviceProfile } = await import('../profile/device-profile');
+      const { buildDeviceProfile } = await import('../profile/device-profile.js');
       const profile = await buildDeviceProfile(deviceId);
       if (!profile) return false;
       return compare(profile.healthScore, cond.operator, cond.value);
