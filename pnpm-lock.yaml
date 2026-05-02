@@ -287,6 +287,9 @@ importers:
       '@ssas/core':
         specifier: workspace:*
         version: link:../core
+      '@ssas/database':
+        specifier: workspace:*
+        version: link:../database
       kafkajs:
         specifier: ^2.2.4
         version: 2.2.4
