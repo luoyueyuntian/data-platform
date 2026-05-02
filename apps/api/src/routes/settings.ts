@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { prisma } from '@ssas/database';
 import { generateApiKey, getApiKeyPreview, hashApiKey } from '@ssas/core';
-import { getTenantId, requireRole, userAuthMiddleware } from '../middleware/auth';
+import { getTenantId, requireRole, userAuthMiddleware } from '../middleware/auth.js';
 
 const settingsRoutes = new Hono();
 settingsRoutes.use('*', userAuthMiddleware);

@@ -2,8 +2,8 @@ import { Kafka, type EachMessagePayload, type Consumer, type Producer } from 'ka
 import { disconnectCache, initCache, writeDataPoints } from '@ssas/storage';
 import { startAlertScheduler, stopAlertScheduler } from '@ssas/alerting';
 import { startMqttIngest, stopMqttIngest } from '@ssas/ingest';
-import { runLifecycleEvaluation } from './jobs/lifecycle-eval';
-import { runSegmentCalculation } from './jobs/segment-calc';
+import { runLifecycleEvaluation } from './jobs/lifecycle-eval.js';
+import { runSegmentCalculation } from './jobs/segment-calc.js';
 import type { DataPoint } from '@ssas/core';
 import { prisma } from '@ssas/database';
 

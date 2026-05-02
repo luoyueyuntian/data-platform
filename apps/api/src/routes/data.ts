@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { prisma } from '@ssas/database';
 import { sendDataPoint, sendBatchDataPoints, DataPointSchema, DataPointBatchSchema } from '@ssas/ingest';
 import { writeDataPoints, queryDataPoints, getLatestDataPoints, buildTimeSeriesQuery } from '@ssas/storage';
-import { authMiddleware, getTenantId, requirePermission } from '../middleware/auth';
+import { authMiddleware, getTenantId, requirePermission } from '../middleware/auth.js';
 
 const dataRoutes = new Hono();
 

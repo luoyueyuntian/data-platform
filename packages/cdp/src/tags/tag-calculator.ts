@@ -1,5 +1,5 @@
 import { prisma } from '@ssas/database';
-import { evaluateTagRule, type TagRule } from './tag-manager';
+import { evaluateTagRule, type TagRule } from './tag-manager.js';
 
 /**
  * Predefined tag rules for common device classifications.

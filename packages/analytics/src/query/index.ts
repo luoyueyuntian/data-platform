@@ -1,1 +1,1 @@
-export { AnalyticsEngine } from './engine';
+export { AnalyticsEngine } from './engine.js';

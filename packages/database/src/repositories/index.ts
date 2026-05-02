@@ -1,3 +1,3 @@
-export { DeviceRepository } from './device.repo';
-export { SensorRepository } from './sensor.repo';
-export { TagRepository } from './tag.repo';
+export { DeviceRepository } from './device.repo.js';
+export { SensorRepository } from './sensor.repo.js';
+export { TagRepository } from './tag.repo.js';

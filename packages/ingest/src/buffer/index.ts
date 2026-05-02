@@ -1,1 +1,1 @@
-export { initProducer, sendDataPoint, sendBatchDataPoints, disconnectProducer } from './producer';
+export { initProducer, sendDataPoint, sendBatchDataPoints, disconnectProducer } from './producer.js';

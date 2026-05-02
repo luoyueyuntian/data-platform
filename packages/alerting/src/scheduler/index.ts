@@ -1,5 +1,5 @@
-import { evaluateAllRules, type EvaluationResult } from '../rules/rule-evaluator';
-import { sendWebhook } from '../channels/webhook';
+import { evaluateAllRules, type EvaluationResult } from '../rules/rule-evaluator.js';
+import { sendWebhook } from '../channels/webhook.js';
 import { prisma } from '@ssas/database';
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;

@@ -1,6 +1,6 @@
 import { prisma } from '@ssas/database';
 import type { TimeSeriesQuery, AggregatedDataPoint } from '@ssas/core';
-import { getCache, setCache, buildCacheKey } from '../query/cache';
+import { getCache, setCache, buildCacheKey } from '../query/cache.js';
 
 /**
  * Query time-series data with aggregation from TimescaleDB.

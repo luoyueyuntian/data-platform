@@ -1,6 +1,6 @@
-import { parseTopic } from './topics';
-import { parseTelemetryPayload, parseBatchTelemetryPayload, parseStatusPayload } from './parser';
-import { sendDataPoint, sendBatchDataPoints } from '../buffer/producer';
+import { parseTopic } from './topics.js';
+import { parseTelemetryPayload, parseBatchTelemetryPayload, parseStatusPayload } from './parser.js';
+import { sendDataPoint, sendBatchDataPoints } from '../buffer/producer.js';
 import type { DataPoint } from '@ssas/core';
 import { prisma } from '@ssas/database';
 

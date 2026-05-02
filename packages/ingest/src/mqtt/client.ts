@@ -1,5 +1,5 @@
 import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
-import { handleIncomingMessage } from './router';
+import { handleIncomingMessage } from './router.js';
 
 let client: MqttClient | null = null;
 

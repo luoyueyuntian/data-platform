@@ -1,1 +1,1 @@
-export { trendAnalysis } from './trend';
+export { trendAnalysis } from './trend.js';

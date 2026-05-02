@@ -1,9 +1,9 @@
-import { eventAnalysis } from '../aggregation/event-analysis';
-import { trendAnalysis } from '../timeseries/trend';
-import { distributionAnalysis } from '../aggregation/distribution';
-import { funnelAnalysis } from '../aggregation/funnel';
-import { retentionAnalysis } from '../aggregation/retention';
-import { attributionAnalysis } from '../aggregation/attribution';
+import { eventAnalysis } from '../aggregation/event-analysis.js';
+import { trendAnalysis } from '../timeseries/trend.js';
+import { distributionAnalysis } from '../aggregation/distribution.js';
+import { funnelAnalysis } from '../aggregation/funnel.js';
+import { retentionAnalysis } from '../aggregation/retention.js';
+import { attributionAnalysis } from '../aggregation/attribution.js';
 import type { EventAnalysisQuery, TrendQuery, DistributionQuery, FunnelQuery, RetentionQuery, AttributionQuery, TimeRange } from '@ssas/core';
 
 export interface EngineResult<T> {

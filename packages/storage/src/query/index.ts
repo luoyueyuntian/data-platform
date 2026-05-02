@@ -1,2 +1,2 @@
-export { buildTimeSeriesQuery, buildExportQuery } from './builder';
-export { initCache, getCache, setCache, buildCacheKey, disconnectCache } from './cache';
+export { buildTimeSeriesQuery, buildExportQuery } from './builder.js';
+export { initCache, getCache, setCache, buildCacheKey, disconnectCache } from './cache.js';

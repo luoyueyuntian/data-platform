@@ -3,7 +3,7 @@
  * 对标神策 14 个分析模型
  */
 
-import type { AggregationFunction } from './data-point';
+import type { AggregationFunction } from './data-point.js';
 
 /** 事件分析 (Event Analysis) */
 export interface EventAnalysisQuery {

@@ -1,2 +1,2 @@
-export { evaluateLifecycleTransition, evaluateTenantLifecycles, LIFECYCLE_STAGES } from './life-cycle';
-export type { LifecycleStage, StageTransition } from './life-cycle';
+export { evaluateLifecycleTransition, evaluateTenantLifecycles, LIFECYCLE_STAGES } from './life-cycle.js';
+export type { LifecycleStage, StageTransition } from './life-cycle.js';

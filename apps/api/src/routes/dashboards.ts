@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { prisma } from '@ssas/database';
-import { getTenantId, userAuthMiddleware } from '../middleware/auth';
+import { getTenantId, userAuthMiddleware } from '../middleware/auth.js';
 
 const dashboardRoutes = new Hono();
 dashboardRoutes.use('*', userAuthMiddleware);

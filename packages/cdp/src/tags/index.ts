@@ -1,3 +1,3 @@
-export { addManualTag, removeTag, evaluateTagRule } from './tag-manager';
-export type { TagDefinition, TagRule, TagCondition } from './tag-manager';
-export { calculateDeviceTags, calculateTenantTags } from './tag-calculator';
+export { addManualTag, removeTag, evaluateTagRule } from './tag-manager.js';
+export type { TagDefinition, TagRule, TagCondition } from './tag-manager.js';
+export { calculateDeviceTags, calculateTenantTags } from './tag-calculator.js';

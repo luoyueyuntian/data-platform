@@ -1,2 +1,2 @@
-export { evaluateAllRules } from './rule-evaluator';
-export type { EvaluationResult } from './rule-evaluator';
+export { evaluateAllRules } from './rule-evaluator.js';
+export type { EvaluationResult } from './rule-evaluator.js';

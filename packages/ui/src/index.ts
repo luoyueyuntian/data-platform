@@ -1,1 +1,1 @@
-export { LineChart, GaugeChart, StatCard } from './components/charts';
+export { LineChart, GaugeChart, StatCard } from './components/charts.js';

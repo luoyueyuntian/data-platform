@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { prisma } from '@ssas/database';
-import { getAuth } from './auth';
+import { getAuth } from './auth.js';
 
 export interface AuditLogEntry {
   tenantId: string;

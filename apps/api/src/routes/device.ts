@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { DeviceRepository, SensorRepository, TagRepository } from '@ssas/database';
-import { getTenantId, userAuthMiddleware } from '../middleware/auth';
+import { getTenantId, userAuthMiddleware } from '../middleware/auth.js';
 import {
   createDeviceSchema, updateDeviceSchema, deviceListQuerySchema, createSensorSchema, createTagSchema,
 } from '@ssas/api/validators/device';

@@ -1,4 +1,4 @@
-export { AnalyticsEngine } from './query';
-export { eventAnalysis } from './aggregation/event-analysis';
-export { trendAnalysis } from './timeseries/trend';
-export { distributionAnalysis } from './aggregation/distribution';
+export { AnalyticsEngine } from './query.js';
+export { eventAnalysis } from './aggregation/event-analysis.js';
+export { trendAnalysis } from './timeseries/trend.js';
+export { distributionAnalysis } from './aggregation/distribution.js';

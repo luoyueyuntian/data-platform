@@ -1,3 +1,3 @@
-export * from './rules';
-export * from './channels';
-export * from './scheduler';
+export * from './rules.js';
+export * from './channels.js';
+export * from './scheduler.js';

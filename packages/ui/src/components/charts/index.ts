@@ -1,3 +1,3 @@
-export { LineChart } from './line-chart';
-export { GaugeChart } from './gauge-chart';
-export { StatCard } from './stat-card';
+export { LineChart } from './line-chart.js';
+export { GaugeChart } from './gauge-chart.js';
+export { StatCard } from './stat-card.js';

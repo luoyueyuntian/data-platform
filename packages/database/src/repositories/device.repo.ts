@@ -1,4 +1,4 @@
-import { prisma } from '../client';
+import { prisma } from '../client.js';
 import { Prisma } from '@prisma/client';
 
 const deviceInclude = {

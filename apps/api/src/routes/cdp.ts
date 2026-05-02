@@ -6,7 +6,7 @@ import { buildDeviceProfile, scoreDevice, getTenantScoreDistribution } from '@ss
 import { calculateDeviceTags, addManualTag, removeTag } from '@ssas/cdp';
 import { calculateSegment, PREDEFINED_SEGMENTS, type SegmentDefinition } from '@ssas/cdp';
 import { evaluateLifecycleTransition, evaluateTenantLifecycles } from '@ssas/cdp';
-import { getTenantId, userAuthMiddleware } from '../middleware/auth';
+import { getTenantId, userAuthMiddleware } from '../middleware/auth.js';
 
 const cdpRoutes = new Hono();
 cdpRoutes.use('*', userAuthMiddleware);

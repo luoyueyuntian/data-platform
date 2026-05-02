@@ -1,4 +1,4 @@
-import type { EvaluationResult } from '../rules/rule-evaluator';
+import type { EvaluationResult } from '../rules/rule-evaluator.js';
 
 /**
  * Send alert notification via webhook.

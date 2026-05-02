@@ -1,4 +1,4 @@
-import { buildDeviceProfile } from './device-profile';
+import { buildDeviceProfile } from './device-profile.js';
 
 /**
  * Device scoring result with interpretation.

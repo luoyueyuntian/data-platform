@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { prisma } from '@ssas/database';
 import bcrypt from 'bcryptjs';
 import { isUserRole, signAccessToken, signRefreshToken, verifyRefreshToken } from '@ssas/auth';
-import { authMiddleware, getAuth, requireUserAuth, optionalAuth } from '../middleware/auth';
+import { authMiddleware, getAuth, requireUserAuth, optionalAuth } from '../middleware/auth.js';
 
 const authRoutes = new Hono();
 const DEFAULT_BOOTSTRAP_TENANT_ID = '00000000-0000-0000-0000-000000000001';

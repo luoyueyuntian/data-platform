@@ -1,5 +1,5 @@
 import { prisma } from '@ssas/database';
-import { buildSegmentSQL, type SegmentDefinition } from './segment-builder';
+import { buildSegmentSQL, type SegmentDefinition } from './segment-builder.js';
 
 /**
  * Segment calculation result.

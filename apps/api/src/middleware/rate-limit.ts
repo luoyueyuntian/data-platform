@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { getAuth } from './auth';
+import { getAuth } from './auth.js';
 
 /**
  * Distributed rate limiter backed by Redis (sorted-set sliding window).

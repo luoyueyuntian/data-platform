@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { AnalyticsEngine } from '@ssas/analytics';
-import { getTenantId, userAuthMiddleware } from '../middleware/auth';
+import { getTenantId, userAuthMiddleware } from '../middleware/auth.js';
 
 const analyticsRoutes = new Hono();
 analyticsRoutes.use('*', userAuthMiddleware);

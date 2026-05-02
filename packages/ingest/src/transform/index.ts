@@ -1,1 +1,1 @@
-export { normalizeDataPoint, normalizeMqttPayload } from './normalizer';
+export { normalizeDataPoint, normalizeMqttPayload } from './normalizer.js';

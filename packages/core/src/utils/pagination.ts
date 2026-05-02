@@ -1,4 +1,4 @@
-import type { PaginatedResult, PaginationParams } from '../types/common';
+import type { PaginatedResult, PaginationParams } from '../types/common.js';
 
 export function buildPaginationParams(page?: number, pageSize?: number): PaginationParams {
   return {

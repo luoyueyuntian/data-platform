@@ -1,5 +1,5 @@
 import type { DataPoint } from '@ssas/core';
-import { MqttDataPointSchema, MqttBatchPayloadSchema } from '../http/validator';
+import { MqttDataPointSchema, MqttBatchPayloadSchema } from '../http/validator.js';
 
 /**
  * Parse a single MQTT telemetry message into a DataPoint.

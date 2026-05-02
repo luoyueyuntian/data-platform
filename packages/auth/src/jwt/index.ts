@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
-import type { UserRole } from '../rbac';
+import type { UserRole } from '../rbac.js';
 
 export interface TokenClaims {
   userId: string;
