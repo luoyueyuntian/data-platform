@@ -7,8 +7,8 @@ import { authApi } from '@/lib/api';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('admin@ssas.local');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,6 +22,7 @@ function LoginForm() {
 
       if (data.code === 0 && data.data) {
         localStorage.setItem('ssas_token', data.data.token);
+        localStorage.setItem('ssas_refresh_token', data.data.refreshToken);
         router.push(searchParams.get('next') || '/');
       } else {
         setError(data.message || 'Login failed');
@@ -79,9 +80,6 @@ function LoginForm() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 16 }}>
-          Demo: admin@ssas.local / admin123
-        </p>
       </div>
     </div>
   );

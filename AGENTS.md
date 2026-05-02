@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides context for Claude Code working on the SSAS (Sensors as a Service) Platform.
+This file provides context for Codex working on the SSAS (Sensors as a Service) Platform.
 
 ## Project
 
@@ -31,9 +31,10 @@ packages/           # Shared packages
 
 ### Infrastructure
 
-- PostgreSQL 16 + TimescaleDB extension (single instance, dual schema: public + timescale)
+- PostgreSQL 16 (business data)
+- TimescaleDB (time-series data)
 - Mosquitto 2 (MQTT broker)
-- Redis 7 (cache + rate limiting)
+- Redis 7 (cache)
 - Kafka 7.9 (message queue)
 
 ## Commands
@@ -129,6 +130,7 @@ import { getTenantId, requireAuth } from '../middleware/auth';
 Required in `.env`:
 ```
 DATABASE_URL="postgresql://ssas:ssas@localhost:5432/ssas"
+TIMESCALE_URL="postgresql://ssas:ssas@localhost:5433/ssas_ts"
 REDIS_URL="redis://localhost:6379/0"
 KAFKA_BROKER="localhost:9092"
 MQTT_BROKER_URL="mqtt://localhost:1883"

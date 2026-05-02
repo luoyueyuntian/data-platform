@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./mqtt": {
+      "types": "./dist/mqtt/index.d.ts",
+      "import": "./src/mqtt/index.ts",
+      "default": "./dist/mqtt/index.js"
     }
   },
   "scripts": {

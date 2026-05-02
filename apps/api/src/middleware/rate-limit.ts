@@ -3,14 +3,9 @@ import { HTTPException } from 'hono/http-exception';
 import { getAuth } from './auth';
 
 /**
- * In-memory rate limiter using sliding window algorithm.
- * For production, use Redis-based rate limiting.
+ * Distributed rate limiter backed by Redis (sorted-set sliding window).
+ * Falls back to in-memory Map when Redis is unavailable.
  */
-
-interface RateLimitEntry {
-  tokens: number;
-  lastRefill: number;
-}
 
 interface RateLimitConfig {
   /** Maximum number of requests per window */
@@ -21,93 +16,125 @@ interface RateLimitConfig {
   prefix?: string;
 }
 
-// In-memory store (use Redis in production)
-const rateLimitStore = new Map<string, RateLimitEntry>();
+// --- Redis client (lazy singleton) ---
+let redis: Awaited<ReturnType<typeof createRedisClient>> | null = null;
+let redisReady = false;
 
-// Cleanup old entries every 5 minutes
+async function createRedisClient() {
+  try {
+    const { createClient } = await import('redis');
+    const client = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+    client.on('error', () => {}); // suppress noisy reconnect logs
+    await client.connect();
+    console.log('[rate-limit] connected to Redis');
+    return client;
+  } catch {
+    return null;
+  }
+}
+
+async function getRedis() {
+  if (redisReady) return redis;
+  redis = await createRedisClient();
+  redisReady = redis !== null;
+  return redis;
+}
+
+// --- In-memory fallback (single-instance only) ---
+interface MemEntry {
+  tokens: number;
+  lastRefill: number;
+}
+const memStore = new Map<string, MemEntry>();
+
+// Cleanup stale in-memory entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (now - entry.lastRefill > 300000) {
-      rateLimitStore.delete(key);
-    }
+  for (const [key, entry] of memStore.entries()) {
+    if (now - entry.lastRefill > 300_000) memStore.delete(key);
   }
-}, 300000);
+}, 300_000);
 
-/**
- * Get rate limit key for a request.
- */
+// --- Key derivation ---
 function getRateLimitKey(c: Context, config: RateLimitConfig): string {
   const auth = getAuth(c);
   const prefix = config.prefix || 'rl';
 
-  // Use tenant ID if available, otherwise fall back to IP
   if (auth?.tenantId) {
     return `${prefix}:tenant:${auth.tenantId}`;
   }
 
-  // Fall back to IP address
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
   return `${prefix}:ip:${ip}`;
 }
 
-/**
- * Check if a request is within rate limits.
- */
-function checkRateLimit(key: string, config: RateLimitConfig): { allowed: boolean; remaining: number; resetAt: number } {
+// --- Redis sliding-window check ---
+async function checkRateLimitRedis(
+  key: string,
+  config: RateLimitConfig,
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const r = await getRedis();
+  if (!r) return checkRateLimitMem(key, config);
+
+  const now = Date.now();
+  const windowMs = config.windowSeconds * 1000;
+  const windowStart = now - windowMs;
+
+  const multi = r.multi();
+  multi.zRemRangeByScore(key, 0, windowStart);
+  multi.zCard(key);
+  multi.zAdd(key, { score: now, value: `${now}:${Math.random()}` });
+  multi.pExpire(key, windowMs);
+
+  const results = await multi.exec();
+  const count = (results?.[1] as number) ?? 0;
+
+  const allowed = count < config.limit;
+  const remaining = Math.max(0, config.limit - count - 1);
+  const resetAt = now + windowMs;
+
+  if (!allowed) {
+    // Remove the entry we just added since it's rejected
+    await r.zRemRangeByRank(key, -1, -1);
+  }
+
+  return { allowed, remaining, resetAt };
+}
+
+// --- In-memory fallback ---
+function checkRateLimitMem(
+  key: string,
+  config: RateLimitConfig,
+): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const windowMs = config.windowSeconds * 1000;
 
-  let entry = rateLimitStore.get(key);
+  let entry = memStore.get(key);
 
   if (!entry || now - entry.lastRefill > windowMs) {
-    // New entry or window expired, reset
-    entry = {
-      tokens: config.limit - 1,
-      lastRefill: now,
-    };
-    rateLimitStore.set(key, entry);
-    return {
-      allowed: true,
-      remaining: entry.tokens,
-      resetAt: now + windowMs,
-    };
+    entry = { tokens: config.limit - 1, lastRefill: now };
+    memStore.set(key, entry);
+    return { allowed: true, remaining: entry.tokens, resetAt: now + windowMs };
   }
 
-  // Check if tokens available
   if (entry.tokens <= 0) {
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt: entry.lastRefill + windowMs,
-    };
+    return { allowed: false, remaining: 0, resetAt: entry.lastRefill + windowMs };
   }
 
-  // Consume a token
   entry.tokens--;
-  return {
-    allowed: true,
-    remaining: entry.tokens,
-    resetAt: entry.lastRefill + windowMs,
-  };
+  return { allowed: true, remaining: entry.tokens, resetAt: entry.lastRefill + windowMs };
 }
 
 /**
  * Rate limiting middleware factory.
- *
- * @example
- * // 100 requests per minute
- * app.use('/api/*', rateLimit({ limit: 100, windowSeconds: 60 }));
- *
- * // 3 requests per second for auth endpoints
- * app.use('/api/v1/auth/*', rateLimit({ limit: 3, windowSeconds: 1, prefix: 'auth' }));
+ * Uses Redis when available for distributed rate limiting; falls back to
+ * in-memory sliding window for single-instance deployments.
  */
 export function rateLimit(config: RateLimitConfig) {
   return async (c: Context, next: Next): Promise<void> => {
     const key = getRateLimitKey(c, config);
-    const { allowed, remaining, resetAt } = checkRateLimit(key, config);
+    const { allowed, remaining, resetAt } = await checkRateLimitRedis(key, config);
 
-    // Set rate limit headers
     c.header('X-RateLimit-Limit', String(config.limit));
     c.header('X-RateLimit-Remaining', String(remaining));
     c.header('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
@@ -115,7 +142,6 @@ export function rateLimit(config: RateLimitConfig) {
     if (!allowed) {
       const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
       c.header('Retry-After', String(retryAfter));
-
       throw new HTTPException(429, {
         message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
       });
@@ -131,39 +157,23 @@ export function rateLimit(config: RateLimitConfig) {
 export const RateLimitPresets = {
   /** General API: 100 requests per minute */
   api: { limit: 100, windowSeconds: 60, prefix: 'api' },
-
   /** Auth endpoints: 5 requests per minute (prevent brute force) */
   auth: { limit: 5, windowSeconds: 60, prefix: 'auth' },
-
   /** Data ingestion: 1000 requests per minute */
   ingest: { limit: 1000, windowSeconds: 60, prefix: 'ingest' },
-
   /** Analytics queries: 30 requests per minute (expensive operations) */
   analytics: { limit: 30, windowSeconds: 60, prefix: 'analytics' },
-
   /** Export operations: 10 requests per hour */
   export: { limit: 10, windowSeconds: 3600, prefix: 'export' },
 } as const;
 
 /**
- * Get rate limit stats for monitoring.
+ * Gracefully disconnect Redis on shutdown.
  */
-export function getRateLimitStats(): {
-  totalKeys: number;
-  keys: Array<{ key: string; tokens: number; lastRefill: number }>;
-} {
-  const keys: Array<{ key: string; tokens: number; lastRefill: number }> = [];
-
-  for (const [key, entry] of rateLimitStore.entries()) {
-    keys.push({
-      key,
-      tokens: entry.tokens,
-      lastRefill: entry.lastRefill,
-    });
+export async function disconnectRateLimit(): Promise<void> {
+  if (redis) {
+    await redis.disconnect();
+    redis = null;
+    redisReady = false;
   }
-
-  return {
-    totalKeys: keys.length,
-    keys,
-  };
 }

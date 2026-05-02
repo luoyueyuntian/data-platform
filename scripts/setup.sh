@@ -4,37 +4,47 @@ set -e
 echo "=== SSAS Platform Setup ==="
 echo ""
 
+DB_CONTAINER="postgres"
+DB_USER="ssas"
+DB_NAME="ssas"
+
 # 1. Start infrastructure services
-echo "[1/6] Starting Docker services..."
+echo "[1/7] Starting Docker services..."
 docker compose -f docker/docker-compose.yml up -d
-echo "  Waiting for services to be ready..."
-sleep 5
+echo "  Waiting for PostgreSQL to be ready..."
+until docker compose -f docker/docker-compose.yml exec -T "$DB_CONTAINER" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; do
+  sleep 1
+done
+echo "  PostgreSQL is ready."
 
 # 2. Install dependencies
-echo "[2/6] Installing dependencies..."
+echo "[2/7] Installing dependencies..."
 pnpm install
 
 # 3. Generate Prisma client
-echo "[3/6] Generating Prisma client..."
+echo "[3/7] Generating Prisma client..."
 pnpm db:generate
 
 # 4. Run database migrations (creates all tables)
-echo "[4/6] Running database migrations..."
+echo "[4/7] Running database migrations..."
 pnpm db:migrate
 
-# 5. Initialize TimescaleDB hypertable
-echo "[5/6] Initializing TimescaleDB hypertable..."
-# The data_points hypertable and continuous aggregates are created via
-# the custom migration step. If using db:migrate, edit the generated
-# migration SQL to include the TimescaleDB commands from:
-#   scripts/init-timescaledb.sql
-echo "  ⚠  If using Prisma migrations, manually add TimescaleDB SQL:"
-echo "     See scripts/init-timescaledb.sql for hypertable setup."
-echo "  💡 Alternative: apply directly to TimescaleDB:"
-echo "     docker compose exec timescaledb psql -U ssas -d ssas_ts -f scripts/init-timescaledb.sql"
+# 5. Initialize TimescaleDB hypertable and continuous aggregates
+echo "[5/7] Initializing TimescaleDB hypertable..."
+docker compose -f docker/docker-compose.yml exec -T "$DB_CONTAINER" \
+  psql -U "$DB_USER" -d "$DB_NAME" -f /dev/stdin < scripts/init-timescaledb.sql
+echo "  TimescaleDB hypertable + continuous aggregates created."
 
-# 6. Build all packages
-echo "[6/6] Building packages..."
+# 6. Seed demo data (optional, skip with SKIP_SEED=1)
+if [ "${SKIP_SEED}" != "1" ]; then
+  echo "[6/7] Seeding demo data..."
+  pnpm db:seed || echo "  Seed skipped or failed (non-fatal)."
+else
+  echo "[6/7] Seeding skipped (SKIP_SEED=1)."
+fi
+
+# 7. Build all packages
+echo "[7/7] Building packages..."
 pnpm build
 
 echo ""
@@ -42,8 +52,7 @@ echo "=== Setup complete! ==="
 echo "Run 'pnpm dev' to start development servers."
 echo "Run 'pnpm db:studio' to open Prisma Studio."
 echo ""
-echo "Next steps:"
-echo "  1. Apply TimescaleDB hypertable setup (see step 5)"
-echo "  2. Start API server:  pnpm -F @ssas/app-api dev"
-echo "  3. Start Worker:      pnpm -F @ssas/app-worker dev"
-echo "  4. Start Web UI:      pnpm -F @ssas/app-web dev"
+echo "Services:"
+echo "  API:   http://localhost:4000/health"
+echo "  Web:   http://localhost:3000"
+echo "  MQTT:  localhost:1883"

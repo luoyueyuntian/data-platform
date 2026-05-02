@@ -3,4 +3,4 @@ export { authMiddleware, userAuthMiddleware, optionalAuth, requireRole, requireP
 export type { AuthPayload } from './auth';
 export { auditMiddleware, logAudit, queryAuditLogs } from './audit';
 export type { AuditLogEntry } from './audit';
-export { rateLimit, RateLimitPresets, getRateLimitStats } from './rate-limit';
+export { rateLimit, RateLimitPresets } from './rate-limit';

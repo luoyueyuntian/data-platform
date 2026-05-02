@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { prisma } from '@ssas/database';
 import bcrypt from 'bcryptjs';
-import { isUserRole, signAccessToken, signRefreshToken } from '@ssas/auth';
+import { isUserRole, signAccessToken, signRefreshToken, verifyRefreshToken } from '@ssas/auth';
 import { authMiddleware, getAuth, requireUserAuth, optionalAuth } from '../middleware/auth';
 
 const authRoutes = new Hono();
@@ -23,6 +23,10 @@ const createUserSchema = z.object({
   name: z.string().min(1).max(255),
   password: z.string().min(6).max(128),
   role: z.enum(['admin', 'operator', 'analyst', 'viewer']).default('viewer'),
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
 });
 
 authRoutes.use('*', optionalAuth);
@@ -169,6 +173,66 @@ authRoutes.post('/verify', authMiddleware, async (c) => {
   }
 
   return c.json({ code: 0, message: 'ok', data: user });
+});
+
+/**
+ * POST /api/v1/auth/refresh
+ * Exchange a valid refresh token for a new access + refresh token pair.
+ */
+authRoutes.post('/refresh', zValidator('json', refreshSchema), async (c) => {
+  const { refreshToken: rawRefreshToken } = c.req.valid('json');
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(rawRefreshToken);
+  } catch {
+    return c.json({ code: 401, message: 'Invalid or expired refresh token' }, 401);
+  }
+
+  // Verify user still exists and is active
+  const user = await prisma.user.findFirst({
+    where: {
+      id: payload.sub,
+      tenantId: payload.tenantId,
+      status: 'active',
+    },
+    select: { id: true, tenantId: true, role: true, email: true, name: true },
+  });
+
+  if (!user) {
+    return c.json({ code: 401, message: 'User not found or disabled' }, 401);
+  }
+
+  if (!isUserRole(user.role)) {
+    return c.json({ code: 500, message: 'Unsupported user role' }, 500);
+  }
+
+  const newToken = signAccessToken({
+    userId: user.id,
+    tenantId: user.tenantId,
+    role: user.role,
+  });
+  const newRefreshToken = signRefreshToken({
+    userId: user.id,
+    tenantId: user.tenantId,
+    role: user.role,
+  });
+
+  return c.json({
+    code: 0,
+    message: 'ok',
+    data: {
+      token: newToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenantId: user.tenantId,
+      },
+    },
+  });
 });
 
 export { authRoutes };

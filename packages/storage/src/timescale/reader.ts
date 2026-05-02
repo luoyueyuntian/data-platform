@@ -1,16 +1,52 @@
 import { prisma } from '@ssas/database';
 import type { TimeSeriesQuery, AggregatedDataPoint } from '@ssas/core';
+import { getCache, setCache, buildCacheKey } from '../query/cache';
 
 /**
  * Query time-series data with aggregation from TimescaleDB.
  * Routes to continuous aggregate views when appropriate for performance.
+ * Results are cached in Redis when available (60 s TTL).
+ *
+ * Note: Continuous aggregate views do NOT contain a `tags` column.
+ * When tags filtering is requested, we fall back to the raw hypertable.
  */
 export async function queryDataPoints(query: TimeSeriesQuery): Promise<AggregatedDataPoint[]> {
+  // Cache lookup (skip when tags filter is present — too many permutations)
+  const hasTagsFilter = query.filters && Object.keys(query.filters).length > 0;
+  if (!hasTagsFilter) {
+    const cacheKey = buildCacheKey('ts', query as unknown as Record<string, unknown>);
+    const cached = await getCache<AggregatedDataPoint[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  const result = await queryDataPointsRaw(query);
+
+  // Store in cache (60 s TTL, only for non-tags queries)
+  if (!hasTagsFilter) {
+    const cacheKey = buildCacheKey('ts', query as unknown as Record<string, unknown>);
+    await setCache(cacheKey, result, 60);
+  }
+
+  return result;
+}
+
+async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDataPoint[]> {
   const { deviceIds, metricNames, startTime, endTime, granularity, aggregation, filters, limit, offset } = query;
 
-  // Determine which table/view to query based on granularity
-  const viewName = getAggregateView(granularity || '1h');
+  const hasTagsFilter = filters && Object.keys(filters).length > 0;
   const aggFn = getAggregateSQL(aggregation || 'avg');
+
+  // Continuous aggregate views don't have a tags column, so fall back to
+  // the raw hypertable when tags filtering is requested.
+  let sourceTable: string;
+  let timeColumn: string;
+  if (hasTagsFilter) {
+    sourceTable = 'timescale.data_points';
+    timeColumn = 'time';
+  } else {
+    sourceTable = getAggregateView(granularity || '1h');
+    timeColumn = 'bucket';
+  }
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -21,9 +57,9 @@ export async function queryDataPoints(query: TimeSeriesQuery): Promise<Aggregate
   params.push(deviceIds);
 
   // Time range
-  conditions.push(`bucket >= $${paramIndex++}`);
+  conditions.push(`${timeColumn} >= $${paramIndex++}`);
   params.push(startTime);
-  conditions.push(`bucket <= $${paramIndex++}`);
+  conditions.push(`${timeColumn} <= $${paramIndex++}`);
   params.push(endTime);
 
   // Metric filter
@@ -32,9 +68,9 @@ export async function queryDataPoints(query: TimeSeriesQuery): Promise<Aggregate
     params.push(metricNames);
   }
 
-  // Tags filter (JSONB)
-  if (filters) {
-    for (const [key, value] of Object.entries(filters)) {
+  // Tags filter (JSONB) — only on raw table
+  if (hasTagsFilter) {
+    for (const [key, value] of Object.entries(filters!)) {
       conditions.push(`tags @> $${paramIndex++}`);
       params.push(JSON.stringify({ [key]: value }));
     }
@@ -44,14 +80,14 @@ export async function queryDataPoints(query: TimeSeriesQuery): Promise<Aggregate
 
   const sql = `
     SELECT
-      bucket,
+      ${timeColumn} AS bucket,
       device_id,
       metric_name,
       ${aggFn}
-    FROM ${viewName}
+    FROM ${sourceTable}
     ${whereClause}
-    GROUP BY bucket, device_id, metric_name
-    ORDER BY bucket DESC
+    GROUP BY ${timeColumn}, device_id, metric_name
+    ORDER BY ${timeColumn} DESC
     LIMIT $${paramIndex++}
     OFFSET $${paramIndex++}
   `;
