@@ -1,7 +1,7 @@
 import { parseTopic } from './topics.js';
 import { parseTelemetryPayload, parseBatchTelemetryPayload, parseStatusPayload } from './parser.js';
-import { sendDataPoint, sendBatchDataPoints } from '../buffer/producer.js';
-import type { DataPoint } from '@ssas/core';
+import { sendEvent, sendBatchEvents } from '../buffer/producer.js';
+import type { Event } from '@ssas/core';
 import { prisma } from '@ssas/database';
 
 /**
@@ -10,6 +10,8 @@ import { prisma } from '@ssas/database';
  *
  * Flow:
  *   MQTT message → Topic parsing → Payload parsing → Kafka producer
+ *
+ * MQTT is IoT-specific: deviceKey maps to entityId, metric maps to eventName.
  */
 export async function handleIncomingMessage(topic: string, payload: string): Promise<void> {
   const parsed = parseTopic(topic);
@@ -21,45 +23,41 @@ export async function handleIncomingMessage(topic: string, payload: string): Pro
   const { deviceKey, dataType, isGateway, gatewayKey } = parsed;
   const effectiveDeviceKey = isGateway ? gatewayKey! : deviceKey;
 
-  const device = await prisma.device.findUnique({
-    where: { deviceKey: effectiveDeviceKey },
+  const entity = await prisma.entity.findUnique({
+    where: { entityKey: effectiveDeviceKey },
     select: { id: true },
   });
-  if (!device) {
-    console.warn(`[mqtt] unknown device key: ${effectiveDeviceKey}, ignored`);
+  if (!entity) {
+    console.warn(`[mqtt] unknown entity key: ${effectiveDeviceKey}, ignored`);
     return;
   }
-  const deviceId = device.id;
+  const entityId = entity.id;
 
-  let dataPoints: DataPoint[];
+  let events: Event[];
 
   switch (dataType) {
     case 'telemetry': {
-      dataPoints = parseTelemetryPayload(payload, deviceId);
+      events = parseTelemetryPayload(payload, entityId);
       break;
     }
     case 'telemetry_batch': {
-      dataPoints = parseBatchTelemetryPayload(payload, deviceId);
+      events = parseBatchTelemetryPayload(payload, entityId);
       break;
     }
     case 'status': {
       const status = parseStatusPayload(payload);
-      // Status changes are handled as system events, not data points
-      console.log(`[mqtt] device ${deviceId} status → ${status.status}`, status.message || '');
-      // TODO: Update device status in DB
-      // TODO: Create system event for status change
-      return; // Don't write status to TimescaleDB
+      console.log(`[mqtt] entity ${entityId} status → ${status.status}`, status.message || '');
+      return;
     }
     default:
       return;
   }
 
-  // Forward to Kafka for processing
-  if (dataPoints.length === 0) {
-    console.warn(`[mqtt] no data points parsed from ${topic}`);
+  if (events.length === 0) {
+    console.warn(`[mqtt] no events parsed from ${topic}`);
     return;
   }
 
-  await sendBatchDataPoints(dataPoints);
-  console.log(`[mqtt] routed ${dataPoints.length} points from ${topic}`);
+  await sendBatchEvents(events);
+  console.log(`[mqtt] routed ${events.length} events from ${topic}`);
 }

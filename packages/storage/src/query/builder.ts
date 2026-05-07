@@ -1,12 +1,12 @@
-import type { TimeSeriesQuery } from '@ssas/core';
+import type { EventQuery } from '@ssas/core';
 
 /**
- * Build a TimeSeriesQuery from API request parameters.
+ * Build an EventQuery from API request parameters.
  * Validates and normalizes input values.
  */
-export function buildTimeSeriesQuery(params: {
-  deviceIds: string[];
-  metricNames?: string[];
+export function buildEventQuery(params: {
+  entityIds: string[];
+  eventNames?: string[];
   startTime: string;
   endTime: string;
   granularity?: string;
@@ -14,7 +14,7 @@ export function buildTimeSeriesQuery(params: {
   filters?: Record<string, string>;
   limit?: number;
   offset?: number;
-}): TimeSeriesQuery {
+}): EventQuery {
   const startTime = new Date(params.startTime);
   const endTime = new Date(params.endTime);
 
@@ -34,12 +34,12 @@ export function buildTimeSeriesQuery(params: {
   }
 
   return {
-    deviceIds: params.deviceIds,
-    metricNames: params.metricNames,
+    entityIds: params.entityIds,
+    eventNames: params.eventNames,
     startTime,
     endTime,
     granularity: params.granularity || '1h',
-    aggregation: (params.aggregation as TimeSeriesQuery['aggregation']) || 'avg',
+    aggregation: (params.aggregation as EventQuery['aggregation']) || 'avg',
     filters: params.filters,
     limit: Math.min(params.limit || 1000, 10000),
     offset: params.offset || 0,
@@ -50,12 +50,12 @@ export function buildTimeSeriesQuery(params: {
  * Parse CSV export query parameters
  */
 export function buildExportQuery(params: {
-  deviceIds: string[];
-  metricNames?: string[];
+  entityIds: string[];
+  eventNames?: string[];
   startTime: string;
   endTime: string;
-}): TimeSeriesQuery {
-  return buildTimeSeriesQuery({
+}): EventQuery {
+  return buildEventQuery({
     ...params,
     granularity: '1m',
     aggregation: 'avg',

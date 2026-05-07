@@ -3,43 +3,43 @@
 import { useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
 
-interface DeviceProfile {
-  deviceId: string;
-  onlineRate: number;
+interface EntityProfile {
+  entityId: string;
+  activeRate: number;
   dataCompleteness: number;
   anomalyRate: number;
-  totalDataPoints: number;
+  totalEvents: number;
   healthScore: number;
   firstSeen: string | null;
   lastSeen: string | null;
   scoreBreakdown: {
-    onlineScore: number;
+    activeScore: number;
     completenessScore: number;
     anomalyScore: number;
   };
 }
 
-interface DeviceScore {
-  deviceId: string;
+interface EntityScore {
+  entityId: string;
   healthScore: number;
   level: string;
   breakdown: {
-    onlineScore: number;
+    activeScore: number;
     completenessScore: number;
     anomalyScore: number;
   };
   suggestions: string[];
 }
 
-export function DeviceProfilePanel({ deviceId }: { deviceId: string }) {
-  const [profile, setProfile] = useState<DeviceProfile | null>(null);
-  const [score, setScore] = useState<DeviceScore | null>(null);
+export function EntityProfilePanel({ entityId }: { entityId: string }) {
+  const [profile, setProfile] = useState<EntityProfile | null>(null);
+  const [score, setScore] = useState<EntityScore | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      apiJson<DeviceProfile>(`/cdp/profile/${deviceId}`),
-      apiJson<DeviceScore>(`/cdp/profile/${deviceId}/score`),
+      apiJson<EntityProfile>(`/cdp/profile/${entityId}`),
+      apiJson<EntityScore>(`/cdp/profile/${entityId}/score`),
     ])
       .then(([profileRes, scoreRes]) => {
         if (profileRes.code === 0) setProfile(profileRes.data ?? null);
@@ -47,14 +47,14 @@ export function DeviceProfilePanel({ deviceId }: { deviceId: string }) {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [deviceId]);
+  }, [entityId]);
 
   if (loading) return <div className="loading" style={{ padding: 20 }}>加载画像中...</div>;
   if (!profile) return null;
 
   return (
     <div>
-      <div className="card-title">设备画像 & CDP</div>
+      <div className="card-title">实体画像 & CDP</div>
 
       {/* Health Score */}
       <div style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -73,7 +73,7 @@ export function DeviceProfilePanel({ deviceId }: { deviceId: string }) {
 
       {/* Score breakdown bar */}
       <div style={{ marginBottom: 16 }}>
-        <ScoreBar label="在线率" score={profile.scoreBreakdown.onlineScore} max={40} pct={profile.onlineRate} />
+        <ScoreBar label="活跃率" score={profile.scoreBreakdown.activeScore} max={40} pct={profile.activeRate} />
         <ScoreBar label="数据完整率" score={profile.scoreBreakdown.completenessScore} max={30} pct={profile.dataCompleteness} />
         <ScoreBar label="异常率" score={profile.scoreBreakdown.anomalyScore} max={30} pct={1 - profile.anomalyRate} invert />
       </div>
@@ -81,8 +81,8 @@ export function DeviceProfilePanel({ deviceId }: { deviceId: string }) {
       {/* Stats */}
       <table className="data-table">
         <tbody>
-          <tr><td>总数据量</td><td>{profile.totalDataPoints.toLocaleString()} 条</td></tr>
-          <tr><td>在线率</td><td>{(profile.onlineRate * 100).toFixed(0)}%</td></tr>
+          <tr><td>总事件量</td><td>{profile.totalEvents.toLocaleString()} 条</td></tr>
+          <tr><td>活跃率</td><td>{(profile.activeRate * 100).toFixed(0)}%</td></tr>
           <tr><td>数据完整率</td><td>{(profile.dataCompleteness * 100).toFixed(0)}%</td></tr>
           <tr><td>异常率</td><td>{(profile.anomalyRate * 100).toFixed(1)}%</td></tr>
           <tr><td>首次上报</td><td>{profile.firstSeen ? new Date(profile.firstSeen).toLocaleString() : '—'}</td></tr>
@@ -125,3 +125,6 @@ function ScoreBar({ label, score, max, pct, invert }: {
     </div>
   );
 }
+
+// Backward compatibility alias
+export const DeviceProfilePanel = EntityProfilePanel;

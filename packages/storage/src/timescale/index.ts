@@ -1,2 +1,2 @@
-export { writeDataPoints, bulkWriteDataPoints } from './writer.js';
-export { queryDataPoints, getLatestDataPoints } from './reader.js';
+export { writeEvents, bulkWriteEvents } from './writer.js';
+export { queryEvents, getLatestEvents } from './reader.js';

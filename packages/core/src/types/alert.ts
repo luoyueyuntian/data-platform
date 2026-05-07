@@ -22,8 +22,8 @@ export interface AlertRule {
 }
 
 export interface AlertCondition {
-  /** 指标名称 */
-  metricName: string;
+  /** 事件名称 */
+  eventName: string;
   /** 比较运算符 */
   operator: ComparisonOperator;
   /** 阈值 */
@@ -47,7 +47,7 @@ export interface AlertRecord {
   id: string;
   ruleId: string;
   ruleName: string;
-  deviceId?: string;
+  entityId?: string;
   /** 触发时的值 */
   triggeredValue: number;
   severity: 'info' | 'warn' | 'critical';

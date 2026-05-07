@@ -1,31 +1,31 @@
 import { describe, it, expect } from 'vitest';
-import { validateDeviceKey, validateEmail } from './validation';
+import { validateEntityKey, validateEmail } from './validation';
 
-describe('validateDeviceKey', () => {
+describe('validateEntityKey', () => {
   it('should accept valid alphanumeric keys', () => {
-    expect(validateDeviceKey('device001')).toBe(true);
-    expect(validateDeviceKey('SENSOR-A')).toBe(true);
-    expect(validateDeviceKey('temp_humidity_01')).toBe(true);
+    expect(validateEntityKey('entity001')).toBe(true);
+    expect(validateEntityKey('SENSOR-A')).toBe(true);
+    expect(validateEntityKey('temp_humidity_01')).toBe(true);
   });
 
   it('should reject keys with special characters', () => {
-    expect(validateDeviceKey('device@001')).toBe(false);
-    expect(validateDeviceKey('sensor key')).toBe(false);
-    expect(validateDeviceKey('device#1')).toBe(false);
+    expect(validateEntityKey('entity@001')).toBe(false);
+    expect(validateEntityKey('entity key')).toBe(false);
+    expect(validateEntityKey('entity#1')).toBe(false);
   });
 
   it('should reject empty keys', () => {
-    expect(validateDeviceKey('')).toBe(false);
+    expect(validateEntityKey('')).toBe(false);
   });
 
   it('should reject keys longer than 64 characters', () => {
     const longKey = 'a'.repeat(65);
-    expect(validateDeviceKey(longKey)).toBe(false);
+    expect(validateEntityKey(longKey)).toBe(false);
   });
 
   it('should accept keys up to 64 characters', () => {
     const validKey = 'a'.repeat(64);
-    expect(validateDeviceKey(validKey)).toBe(true);
+    expect(validateEntityKey(validKey)).toBe(true);
   });
 });
 

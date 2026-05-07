@@ -1,28 +1,28 @@
 import { z } from 'zod';
 
 /**
- * Single DataPoint ingestion schema
+ * Single Event ingestion schema
  */
-export const DataPointSchema = z.object({
-  deviceId: z.string().uuid(),
-  metricName: z.string().min(1).max(100),
-  value: z.number(),
+export const EventSchema = z.object({
+  entityId: z.string().uuid(),
+  eventName: z.string().min(1).max(100),
+  value: z.number().optional(),
+  properties: z.record(z.unknown()).optional(),
   time: z.string().datetime().optional(),
-  sensorId: z.string().uuid().optional(),
   tags: z.record(z.string().max(255)).optional(),
   quality: z.number().int().min(0).max(100).optional().default(100),
 });
 
 /**
- * Batch DataPoint ingestion schema
+ * Batch Event ingestion schema
  */
-export const DataPointBatchSchema = z.object({
-  deviceId: z.string().uuid(),
-  dataPoints: z.array(DataPointSchema).min(1).max(1000),
+export const EventBatchSchema = z.object({
+  entityId: z.string().uuid(),
+  events: z.array(EventSchema).min(1).max(1000),
 });
 
 /**
- * MQTT DataPoint payload schema (without deviceId, set by topic)
+ * MQTT DataPoint payload schema (IoT-specific, converted to Event internally)
  */
 export const MqttDataPointSchema = z.object({
   ts: z.number().positive().optional(),
@@ -47,5 +47,11 @@ export const MqttBatchPayloadSchema = z.object({
   message: 'Either "values" or "metrics" must be provided',
 });
 
-export type DataPointInput = z.infer<typeof DataPointSchema>;
-export type DataPointBatchInput = z.infer<typeof DataPointBatchSchema>;
+export type EventInput = z.infer<typeof EventSchema>;
+export type EventBatchInput = z.infer<typeof EventBatchSchema>;
+
+// Backward compatibility aliases
+export const DataPointSchema = EventSchema;
+export const DataPointBatchSchema = EventBatchSchema;
+export type DataPointInput = EventInput;
+export type DataPointBatchInput = EventBatchInput;

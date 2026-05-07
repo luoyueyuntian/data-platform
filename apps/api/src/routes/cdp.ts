@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { DeviceRepository, TagRepository } from '@ssas/database';
-import { buildDeviceProfile, scoreDevice, getTenantScoreDistribution } from '@ssas/cdp';
-import { calculateDeviceTags, addManualTag, removeTag } from '@ssas/cdp';
+import { EntityRepository, TagRepository } from '@ssas/database';
+import { buildEntityProfile, scoreEntity, getTenantScoreDistribution } from '@ssas/cdp';
+import { calculateEntityTags, addManualTag, removeTag } from '@ssas/cdp';
 import { calculateSegment, PREDEFINED_SEGMENTS, type SegmentDefinition } from '@ssas/cdp';
 import { evaluateLifecycleTransition, evaluateTenantLifecycles } from '@ssas/cdp';
 import { getTenantId, userAuthMiddleware } from '../middleware/auth.js';
@@ -20,7 +20,7 @@ const profileRuleSchema = z.object({
 
 const metricRuleSchema = z.object({
   type: z.literal('metric'),
-  metricName: z.string().min(1),
+  eventName: z.string().min(1),
   aggregation: z.enum(['avg', 'sum', 'max', 'min', 'count']),
   operator: z.enum(['>', '<', '>=', '<=', 'between']),
   value: z.union([z.number(), z.tuple([z.number(), z.number()])]),
@@ -42,55 +42,41 @@ const segmentSchema = z.object({
 });
 
 // ======================
-// Device Profile
+// Entity Profile
 // ======================
 
-/**
- * GET /api/v1/cdp/profile/:deviceId
- * Build a device profile with health score.
- */
-cdpRoutes.get('/profile/:deviceId', async (c) => {
-  const { deviceId } = c.req.param();
+cdpRoutes.get('/profile/:entityId', async (c) => {
+  const { entityId } = c.req.param();
   const tenantId = getTenantId(c);
-  const device = await DeviceRepository.findById(deviceId, tenantId);
-  if (!device) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+  const entity = await EntityRepository.findById(entityId, tenantId);
+  if (!entity) {
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
-  const profile = await buildDeviceProfile(deviceId);
-
+  const profile = await buildEntityProfile(entityId);
   if (!profile) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
   return c.json({ code: 0, message: 'ok', data: profile });
 });
 
-/**
- * GET /api/v1/cdp/profile/:deviceId/score
- * Get device score with interpretation.
- */
-cdpRoutes.get('/profile/:deviceId/score', async (c) => {
-  const { deviceId } = c.req.param();
+cdpRoutes.get('/profile/:entityId/score', async (c) => {
+  const { entityId } = c.req.param();
   const tenantId = getTenantId(c);
-  const device = await DeviceRepository.findById(deviceId, tenantId);
-  if (!device) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+  const entity = await EntityRepository.findById(entityId, tenantId);
+  if (!entity) {
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
-  const result = await scoreDevice(deviceId);
-
+  const result = await scoreEntity(entityId);
   if (!result) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
   return c.json({ code: 0, message: 'ok', data: result });
 });
 
-/**
- * GET /api/v1/cdp/stats
- * Score distribution across all devices in tenant.
- */
 cdpRoutes.get('/stats', async (c) => {
   const tenantId = getTenantId(c);
   const dist = await getTenantScoreDistribution(tenantId);
@@ -101,30 +87,22 @@ cdpRoutes.get('/stats', async (c) => {
 // Tags
 // ======================
 
-/**
- * POST /api/v1/cdp/tags
- * Add a manual tag to a device.
- */
 cdpRoutes.post('/tags', zValidator('json', z.object({
-  deviceId: z.string().uuid(),
+  entityId: z.string().uuid(),
   key: z.string().min(1).max(128),
   value: z.string().max(255),
 })), async (c) => {
-  const { deviceId, key, value } = c.req.valid('json');
+  const { entityId, key, value } = c.req.valid('json');
   const tenantId = getTenantId(c);
-  const device = await DeviceRepository.findById(deviceId, tenantId);
-  if (!device) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+  const entity = await EntityRepository.findById(entityId, tenantId);
+  if (!entity) {
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
-  await addManualTag(deviceId, key, value);
+  await addManualTag(entityId, key, value);
   return c.json({ code: 0, message: 'ok' }, 201);
 });
 
-/**
- * DELETE /api/v1/cdp/tags/:tagId
- * Remove a tag.
- */
 cdpRoutes.delete('/tags/:tagId', async (c) => {
   const { tagId } = c.req.param();
   const tenantId = getTenantId(c);
@@ -132,8 +110,8 @@ cdpRoutes.delete('/tags/:tagId', async (c) => {
   if (!tag) {
     return c.json({ code: 404, message: 'Tag not found' }, 404);
   }
-  const device = await DeviceRepository.findById(tag.deviceId, tenantId);
-  if (!device) {
+  const entity = await EntityRepository.findById(tag.entityId, tenantId);
+  if (!entity) {
     return c.json({ code: 403, message: 'Forbidden' }, 403);
   }
 
@@ -141,38 +119,26 @@ cdpRoutes.delete('/tags/:tagId', async (c) => {
   return c.json({ code: 0, message: 'ok' });
 });
 
-/**
- * POST /api/v1/cdp/tags/calculate/:deviceId
- * Calculate computed tags for a device.
- */
-cdpRoutes.post('/tags/calculate/:deviceId', async (c) => {
-  const { deviceId } = c.req.param();
+cdpRoutes.post('/tags/calculate/:entityId', async (c) => {
+  const { entityId } = c.req.param();
   const tenantId = getTenantId(c);
-  const device = await DeviceRepository.findById(deviceId, tenantId);
-  if (!device) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+  const entity = await EntityRepository.findById(entityId, tenantId);
+  if (!entity) {
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
-  const tags = await calculateDeviceTags(deviceId);
-  return c.json({ code: 0, message: 'ok', data: { deviceId, tags } });
+  const tags = await calculateEntityTags(entityId);
+  return c.json({ code: 0, message: 'ok', data: { entityId, tags } });
 });
 
 // ======================
 // Segments
 // ======================
 
-/**
- * GET /api/v1/cdp/segments
- * List predefined segments.
- */
 cdpRoutes.get('/segments', async (c) => {
   return c.json({ code: 0, message: 'ok', data: PREDEFINED_SEGMENTS });
 });
 
-/**
- * POST /api/v1/cdp/segments/calculate
- * Execute a segment query.
- */
 cdpRoutes.post('/segments/calculate', zValidator('json', segmentSchema), async (c) => {
   const tenantId = getTenantId(c);
   const data = c.req.valid('json');
@@ -186,26 +152,18 @@ cdpRoutes.post('/segments/calculate', zValidator('json', segmentSchema), async (
 // Lifecycle
 // ======================
 
-/**
- * POST /api/v1/cdp/lifecycle/evaluate/:deviceId
- * Evaluate lifecycle transition for a device.
- */
-cdpRoutes.post('/lifecycle/evaluate/:deviceId', async (c) => {
-  const { deviceId } = c.req.param();
+cdpRoutes.post('/lifecycle/evaluate/:entityId', async (c) => {
+  const { entityId } = c.req.param();
   const tenantId = getTenantId(c);
-  const device = await DeviceRepository.findById(deviceId, tenantId);
-  if (!device) {
-    return c.json({ code: 404, message: 'Device not found' }, 404);
+  const entity = await EntityRepository.findById(entityId, tenantId);
+  if (!entity) {
+    return c.json({ code: 404, message: 'Entity not found' }, 404);
   }
 
-  const result = await evaluateLifecycleTransition(deviceId);
+  const result = await evaluateLifecycleTransition(entityId);
   return c.json({ code: 0, message: 'ok', data: result });
 });
 
-/**
- * POST /api/v1/cdp/lifecycle/evaluate-all
- * Evaluate lifecycle transitions for all devices in tenant.
- */
 cdpRoutes.post('/lifecycle/evaluate-all', async (c) => {
   const tenantId = getTenantId(c);
   const result = await evaluateTenantLifecycles(tenantId);

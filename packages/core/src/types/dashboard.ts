@@ -45,7 +45,7 @@ export type ChartType =
   | 'area';
 
 export interface PanelQuery {
-  metricNames: string[];
+  eventNames: string[];
   aggregation: string;
   granularity: string;
   filters?: Record<string, string>;

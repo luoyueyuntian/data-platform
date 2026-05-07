@@ -1,5 +1,5 @@
-/** 校验设备标识符 */
-export function validateDeviceKey(key: string): boolean {
+/** 校验实体标识符 */
+export function validateEntityKey(key: string): boolean {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(key);
 }
 

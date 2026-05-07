@@ -1,21 +1,20 @@
 /**
- * Device segment builder — defines conditions for grouping devices.
+ * Entity segment builder — defines conditions for grouping entities.
  *
- * 对标神策分群: 基于属性/事件/行为序列的设备分组
+ * 对标神策分群: 基于属性/事件/行为序列的实体分组
  */
 
 export interface SegmentDefinition {
   name: string;
   description?: string;
-  /** 规则组间逻辑 */
   relation: 'and' | 'or';
   rules: SegmentRule[];
 }
 
 export type SegmentRule =
-  | ProfileRule       // 设备属性规则
-  | MetricRule        // 指标聚合规则
-  | TagRule           // 标签规则
+  | ProfileRule
+  | MetricRule
+  | TagRule
   ;
 
 export interface ProfileRule {
@@ -27,11 +26,10 @@ export interface ProfileRule {
 
 export interface MetricRule {
   type: 'metric';
-  metricName: string;
+  eventName: string;
   aggregation: 'avg' | 'sum' | 'max' | 'min' | 'count';
   operator: '>' | '<' | '>=' | '<=' | 'between';
   value: number | [number, number];
-  /** 统计窗口 */
   windowHours: number;
 }
 
@@ -44,7 +42,6 @@ export interface TagRule {
 
 /**
  * Build a SQL WHERE clause from segment definition.
- * Used by the segment calculator to query matching devices.
  */
 export function buildSegmentSQL(segment: SegmentDefinition): { sql: string; params: unknown[] } {
   const conditions: string[] = [];
@@ -56,13 +53,13 @@ export function buildSegmentSQL(segment: SegmentDefinition): { sql: string; para
       case 'profile': {
         const pr = rule as ProfileRule;
         if (pr.operator === 'in') {
-          conditions.push(`d.${pr.field} = ANY($${idx++})`);
+          conditions.push(`e.${pr.field} = ANY($${idx++})`);
           params.push(pr.value);
         } else if (pr.operator === 'contains') {
-          conditions.push(`d.${pr.field} ILIKE $${idx++}`);
+          conditions.push(`e.${pr.field} ILIKE $${idx++}`);
           params.push(`%${pr.value}%`);
         } else {
-          conditions.push(`d.${pr.field} ${toSqlComparisonOperator(pr.operator)} $${idx++}`);
+          conditions.push(`e.${pr.field} ${toSqlComparisonOperator(pr.operator)} $${idx++}`);
           params.push(pr.value);
         }
         break;
@@ -70,10 +67,10 @@ export function buildSegmentSQL(segment: SegmentDefinition): { sql: string; para
       case 'tag': {
         const tr = rule as TagRule;
         if (tr.operator === 'exists') {
-          conditions.push(`EXISTS (SELECT 1 FROM device_tags dt WHERE dt.device_id = d.id AND dt.key = $${idx++})`);
+          conditions.push(`EXISTS (SELECT 1 FROM entity_tags et WHERE et.entity_id = e.id AND et.key = $${idx++})`);
           params.push(tr.key);
         } else {
-          conditions.push(`EXISTS (SELECT 1 FROM device_tags dt WHERE dt.device_id = d.id AND dt.key = $${idx++} AND dt.value ${toSqlComparisonOperator(tr.operator)} $${idx++})`);
+          conditions.push(`EXISTS (SELECT 1 FROM entity_tags et WHERE et.entity_id = e.id AND et.key = $${idx++} AND et.value ${toSqlComparisonOperator(tr.operator)} $${idx++})`);
           params.push(tr.key, tr.value);
         }
         break;
@@ -83,11 +80,11 @@ export function buildSegmentSQL(segment: SegmentDefinition): { sql: string; para
         const windowStart = new Date(Date.now() - mr.windowHours * 3600000);
         const metricSql = buildMetricCondition(mr, idx);
         conditions.push(
-          `EXISTS (SELECT 1 FROM timescale.data_points dp WHERE dp.device_id = d.id ` +
-          `AND dp.metric_name = $${idx++} AND dp.time >= $${idx++} ` +
-          `GROUP BY dp.device_id HAVING ${metricSql.sql})`
+          `EXISTS (SELECT 1 FROM timescale.events ev WHERE ev.entity_id = e.id ` +
+          `AND ev.event_name = $${idx++} AND ev.time >= $${idx++} ` +
+          `GROUP BY ev.entity_id HAVING ${metricSql.sql})`
         );
-        params.push(mr.metricName, windowStart, ...metricSql.params);
+        params.push(mr.eventName, windowStart, ...metricSql.params);
         idx += metricSql.paramCount;
         break;
       }
@@ -106,14 +103,14 @@ function buildMetricCondition(rule: MetricRule, startIndex: number): { sql: stri
   if (rule.operator === 'between') {
     const [min, max] = rule.value as [number, number];
     return {
-      sql: `${aggregation}(dp.value) BETWEEN $${startIndex} AND $${startIndex + 1}`,
+      sql: `${aggregation}(ev.value) BETWEEN $${startIndex} AND $${startIndex + 1}`,
       params: [min, max],
       paramCount: 2,
     };
   }
 
   return {
-    sql: `${aggregation}(dp.value) ${toSqlComparisonOperator(rule.operator)} $${startIndex}`,
+    sql: `${aggregation}(ev.value) ${toSqlComparisonOperator(rule.operator)} $${startIndex}`,
     params: [rule.value],
     paramCount: 1,
   };
@@ -132,7 +129,7 @@ function toSqlAggregation(aggregation: MetricRule['aggregation']): string {
   }
 }
 
-function toSqlComparisonOperator(operator: '=' | '!=' | '>' | '<' | '>=' | '<='): string {
+function toSqlComparisonOperator(operator: string): string {
   switch (operator) {
     case '=':
     case '!=':

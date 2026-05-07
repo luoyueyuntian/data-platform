@@ -4,27 +4,14 @@ export const DEFAULT_PAGE_SIZE = 20;
 /** 最大分页大小 */
 export const MAX_PAGE_SIZE = 100;
 
-/** 预置指标定义 */
-export const PRESET_METRICS = {
-  TEMPERATURE: 'temperature',
-  HUMIDITY: 'humidity',
-  PRESSURE: 'pressure',
-  VIBRATION: 'vibration',
-  FLOW_RATE: 'flow_rate',
-  LEVEL: 'level',
-  VOLTAGE: 'voltage',
-  CURRENT: 'current',
-  POWER: 'power',
-} as const;
-
 /** 系统限制常量 */
 export const LIMITS = {
-  /** 单次批量最大数据点数 */
+  /** 单次批量最大事件数 */
   MAX_BATCH_SIZE: 1000,
-  /** 设备名最大长度 */
-  MAX_DEVICE_NAME_LENGTH: 255,
+  /** 实体名最大长度 */
+  MAX_ENTITY_NAME_LENGTH: 255,
   /** 最多标签数 */
-  MAX_TAGS_PER_DEVICE: 50,
+  MAX_TAGS_PER_ENTITY: 50,
   /** 查询最大时间范围 (天) */
   MAX_QUERY_DAYS: 365,
   /** 告警规则名最大长度 */

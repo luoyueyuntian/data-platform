@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 
 const navItems = [
   { href: '/', label: '总览', icon: '📊' },
-  { href: '/devices', label: '设备管理', icon: '📡' },
-  { href: '/data', label: '数据查询', icon: '📈' },
+  { href: '/devices', label: '实体管理', icon: '📡' },
+  { href: '/data', label: '事件查询', icon: '📈' },
   { href: '/analytics', label: '分析模型', icon: '🔍' },
   { href: '/alerts', label: '告警管理', icon: '🔔' },
   { href: '/dashboards', label: '可视化看板', icon: '📋' },

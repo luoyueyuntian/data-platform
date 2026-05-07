@@ -3,11 +3,11 @@
  * 对标神策 14 个分析模型
  */
 
-import type { AggregationFunction } from './data-point.js';
+import type { AggregationFunction } from './event.js';
 
 /** 事件分析 (Event Analysis) */
 export interface EventAnalysisQuery {
-  metricName: string;
+  eventName: string;
   aggregation: AggregationFunction;
   /** 分组维度 */
   groupBy?: string[];
@@ -29,14 +29,14 @@ export interface FunnelQuery {
 
 export interface FunnelStep {
   name: string;
-  metricName: string;
+  eventName: string;
   filters?: QueryFilter[];
 }
 
 /** 留存分析 (Retention Analysis) */
 export interface RetentionQuery {
-  initialMetric: string;
-  returnMetric: string;
+  initialEvent: string;
+  returnEvent: string;
   /** 留存周期 */
   period: 'day' | 'week' | 'month';
   timeRange: TimeRange;
@@ -44,7 +44,7 @@ export interface RetentionQuery {
 
 /** 分布分析 (Distribution Analysis) */
 export interface DistributionQuery {
-  metricName: string;
+  eventName: string;
   /** 分段区间 */
   buckets?: number[];
   timeRange: TimeRange;
@@ -52,8 +52,8 @@ export interface DistributionQuery {
 
 /** 归因分析 (Attribution Analysis) */
 export interface AttributionQuery {
-  targetMetric: string;
-  attributionMetrics: string[];
+  targetEvent: string;
+  attributionEvents: string[];
   /** 回溯窗口 (秒) */
   lookbackSeconds: number;
   model: AttributionModel;
@@ -64,7 +64,7 @@ export type AttributionModel = 'first' | 'last' | 'linear' | 'position' | 'time_
 
 /** 趋势分析 */
 export interface TrendQuery {
-  metricName: string;
+  eventName: string;
   aggregation: AggregationFunction;
   timeRange: TimeRange;
   granularity: string;

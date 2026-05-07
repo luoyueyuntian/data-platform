@@ -6,8 +6,8 @@ export interface RetentionPeriod {
   period: number;
   /** 周期标签 */
   label: string;
-  /** 该周期活跃设备数 */
-  activeDevices: number;
+  /** 该周期活跃实体数 */
+  activeEntities: number;
   /** 留存率 (与初始周期相比) */
   retentionRate: number;
 }
@@ -15,40 +15,36 @@ export interface RetentionPeriod {
 export interface RetentionResult {
   periods: RetentionPeriod[];
   totalCohort: number;
-  metricName: string;
+  eventName: string;
   periodUnit: string;
 }
 
 /**
- * Retention analysis — device activity retention over time.
+ * Retention analysis — entity activity retention over time.
  *
  * 对标神策 Retention Analysis:
  *   初始行为 (first_event) → 回访行为 (second_event)
  *   按日/周/月周期计算留存率
- *
- * SSAS 适配: 设备活跃度留存。
- *   初始: 设备在某个时间窗口内上报过数据
- *   留存: 设备在后续 N 个周期内是否继续上报数据
  */
 export async function retentionAnalysis(query: RetentionQuery): Promise<RetentionResult> {
-  const { initialMetric, returnMetric, period, timeRange } = query;
+  const { initialEvent, returnEvent, period, timeRange } = query;
   const tenantId = (query as RetentionQuery & { tenantId?: string }).tenantId;
 
-  // 1. Find devices active in the initial period (first week/month)
+  // 1. Find entities active in the initial period
   const initialStart = timeRange.start;
   const initialEnd = getPeriodEnd(initialStart, period);
 
-  const initialDevices = await queryActiveDevices(initialMetric, initialStart, initialEnd, tenantId);
-  const totalCohort = initialDevices.length;
+  const initialEntities = await queryActiveEntities(initialEvent, initialStart, initialEnd, tenantId);
+  const totalCohort = initialEntities.length;
 
   if (totalCohort === 0) {
-    return { periods: [], totalCohort: 0, metricName: initialMetric, periodUnit: period };
+    return { periods: [], totalCohort: 0, eventName: initialEvent, periodUnit: period };
   }
 
   // Convert to Set for fast lookup
-  const initialDeviceSet = new Set(initialDevices.map((d) => d.device_id));
+  const initialEntitySet = new Set(initialEntities.map((e) => e.entity_id));
 
-  // 2. For each subsequent period, check how many initial devices returned
+  // 2. For each subsequent period, check how many initial entities returned
   const numPeriods = getNumPeriods(period);
   const periods: RetentionPeriod[] = [];
 
@@ -56,7 +52,7 @@ export async function retentionAnalysis(query: RetentionQuery): Promise<Retentio
   periods.push({
     period: 0,
     label: getPeriodLabel(0, period),
-    activeDevices: totalCohort,
+    activeEntities: totalCohort,
     retentionRate: 100,
   });
 
@@ -65,24 +61,23 @@ export async function retentionAnalysis(query: RetentionQuery): Promise<Retentio
     const pEnd = getPeriodEnd(pStart, period);
 
     // Query return activity
-    const returnDevices = await prisma.$queryRawUnsafe<{ device_id: string }[]>(
-      `SELECT DISTINCT dp.device_id
-       FROM timescale.data_points dp
-       ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-       WHERE dp.metric_name = $1
-         AND dp.time >= $2
-         AND dp.time < $3
-         AND dp.device_id = ANY($4)
-         ${tenantId ? 'AND d.tenant_id = $5::uuid' : ''}`,
+    const returnEntities = await prisma.$queryRawUnsafe<{ entity_id: string }[]>(
+      `SELECT DISTINCT ev.entity_id
+       FROM timescale.events ev
+       ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+       WHERE ev.event_name = $1
+         AND ev.time >= $2
+         AND ev.time < $3
+         AND ev.entity_id = ANY($4::uuid[])
+         ${tenantId ? 'AND e.tenant_id = $5::uuid' : ''}`,
       ...(
         tenantId
-          ? [returnMetric, pStart, pEnd, [...initialDeviceSet], tenantId]
-          : [returnMetric, pStart, pEnd, [...initialDeviceSet]]
+          ? [returnEvent, pStart, pEnd, [...initialEntitySet], tenantId]
+          : [returnEvent, pStart, pEnd, [...initialEntitySet]]
       )
     );
 
-    // Count how many of the initial cohort returned
-    const returnedCount = returnDevices.length;
+    const returnedCount = returnEntities.length;
     const retentionRate = totalCohort > 0
       ? Math.round((returnedCount / totalCohort) * 10000) / 100
       : 0;
@@ -90,7 +85,7 @@ export async function retentionAnalysis(query: RetentionQuery): Promise<Retentio
     periods.push({
       period: i,
       label: getPeriodLabel(i, period),
-      activeDevices: returnedCount,
+      activeEntities: returnedCount,
       retentionRate,
     });
   }
@@ -98,29 +93,29 @@ export async function retentionAnalysis(query: RetentionQuery): Promise<Retentio
   return {
     periods,
     totalCohort,
-    metricName: initialMetric,
+    eventName: initialEvent,
     periodUnit: period,
   };
 }
 
 /**
- * Query devices that reported a specific metric within a time window.
+ * Query entities that reported a specific event within a time window.
  */
-async function queryActiveDevices(
-  metricName: string,
+async function queryActiveEntities(
+  eventName: string,
   start: Date,
   end: Date,
   tenantId?: string,
-): Promise<{ device_id: string }[]> {
-  return prisma.$queryRawUnsafe<{ device_id: string }[]>(
-    `SELECT DISTINCT dp.device_id
-     FROM timescale.data_points dp
-     ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-     WHERE dp.metric_name = $1
-       AND dp.time >= $2
-       AND dp.time < $3
-       ${tenantId ? 'AND d.tenant_id = $4::uuid' : ''}`,
-    ...(tenantId ? [metricName, start, end, tenantId] : [metricName, start, end])
+): Promise<{ entity_id: string }[]> {
+  return prisma.$queryRawUnsafe<{ entity_id: string }[]>(
+    `SELECT DISTINCT ev.entity_id
+     FROM timescale.events ev
+     ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+     WHERE ev.event_name = $1
+       AND ev.time >= $2
+       AND ev.time < $3
+       ${tenantId ? 'AND e.tenant_id = $4::uuid' : ''}`,
+    ...(tenantId ? [eventName, start, end, tenantId] : [eventName, start, end])
   );
 }
 
@@ -148,9 +143,9 @@ function getNextPeriodStart(base: Date, period: string, n: number): Date {
 
 function getNumPeriods(period: string): number {
   switch (period) {
-    case 'day':   return 30;  // 30-day retention
-    case 'week':  return 12;  // 12-week retention
-    case 'month': return 12;  // 12-month retention
+    case 'day':   return 30;
+    case 'week':  return 12;
+    case 'month': return 12;
     default:      return 7;
   }
 }

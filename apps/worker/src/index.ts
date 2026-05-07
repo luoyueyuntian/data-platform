@@ -1,16 +1,15 @@
 import { Kafka, type EachMessagePayload, type Consumer, type Producer } from 'kafkajs';
-import { disconnectCache, initCache, writeDataPoints } from '@ssas/storage';
+import { disconnectCache, initCache, writeEvents } from '@ssas/storage';
 import { startAlertScheduler, stopAlertScheduler } from '@ssas/alerting';
 import { startMqttIngest, stopMqttIngest } from '@ssas/ingest';
 import { runLifecycleEvaluation } from './jobs/lifecycle-eval.js';
 import { runSegmentCalculation } from './jobs/segment-calc.js';
-import type { DataPoint } from '@ssas/core';
+import type { Event } from '@ssas/core';
 import { prisma } from '@ssas/database';
 
 const TOPIC_RAW_EVENTS = 'ssas.raw.events';
 const TOPIC_DEAD_LETTER = 'ssas.raw.events.dlq';
 
-// Shared Kafka producer for DLQ (reused across the worker lifetime)
 let dlqProducer: Producer | null = null;
 let consumer: Consumer | null = null;
 
@@ -25,12 +24,10 @@ async function main() {
     brokers: [broker],
   });
 
-  // Create a shared DLQ producer
   dlqProducer = kafka.producer();
   await dlqProducer.connect();
   console.log('[worker] DLQ producer connected');
 
-  // --- Kafka Consumer ---
   consumer = kafka.consumer({ groupId: 'ssas-ingest-group' });
   await consumer.connect();
   console.log('[worker] consumer connected to', broker);
@@ -47,14 +44,14 @@ async function main() {
         const raw = message.value?.toString();
         if (!raw) return;
 
-        const dataPoint: DataPoint = JSON.parse(raw);
+        const event: Event = JSON.parse(raw);
 
-        if (!dataPoint.deviceId || !dataPoint.metricName || dataPoint.value === undefined) {
-          throw new Error('Invalid data point: missing required fields');
+        if (!event.entityId || !event.eventName) {
+          throw new Error('Invalid event: missing required fields (entityId, eventName)');
         }
 
-        await writeDataPoints([dataPoint]);
-        console.log(`[worker] ingested: ${dataPoint.deviceId}/${dataPoint.metricName} = ${dataPoint.value}`);
+        await writeEvents([event]);
+        console.log(`[worker] ingested: ${event.entityId}/${event.eventName}`);
       } catch (err) {
         console.error(`[worker] error processing message from ${topic}[${partition}]:`, err);
         await sendToDLQ(message.value?.toString() || '', err);
@@ -77,7 +74,7 @@ async function main() {
   }
 
   // --- Periodic Lifecycle & Segment Jobs ---
-  const jobInterval = Number(process.env.JOB_INTERVAL_MS) || 300_000; // 5 min default
+  const jobInterval = Number(process.env.JOB_INTERVAL_MS) || 300_000;
   const jobTimer = setInterval(async () => {
     try {
       const tenants = await prisma.tenant.findMany({ select: { id: true } });
@@ -101,13 +98,9 @@ async function main() {
 
   console.log('[worker] all subsystems started, waiting for messages...');
 
-  // Store timer for cleanup
   (globalThis as Record<string, unknown>).__jobTimer = jobTimer;
 }
 
-/**
- * Send failed messages to dead letter queue using the shared producer.
- */
 async function sendToDLQ(rawMessage: string, error: unknown): Promise<void> {
   if (!dlqProducer) {
     console.error('[worker] DLQ producer not available');
@@ -129,9 +122,6 @@ async function sendToDLQ(rawMessage: string, error: unknown): Promise<void> {
   }
 }
 
-/**
- * Graceful shutdown — disconnect all subsystems in order.
- */
 async function shutdown(): Promise<void> {
   console.log('[worker] shutting down...');
 

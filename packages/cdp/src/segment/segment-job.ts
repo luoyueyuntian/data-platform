@@ -6,13 +6,13 @@ import { buildSegmentSQL, type SegmentDefinition } from './segment-builder.js';
  */
 export interface SegmentResult {
   segmentName: string;
-  deviceCount: number;
-  deviceIds: string[];
+  entityCount: number;
+  entityIds: string[];
   sql: string;
 }
 
 /**
- * Execute a segment definition and return matching device IDs.
+ * Execute a segment definition and return matching entity IDs.
  */
 export async function calculateSegment(
   tenantId: string,
@@ -21,10 +21,10 @@ export async function calculateSegment(
   const { sql, params } = buildSegmentSQL(segment);
 
   const fullSQL = `
-    SELECT d.id, d.name, d.status, d.type
-    FROM devices d
-    WHERE d.tenant_id = $1 AND (${sql})
-    ORDER BY d.name ASC
+    SELECT e.id, e.name, e.status, e.type
+    FROM entities e
+    WHERE e.tenant_id = $1 AND (${sql})
+    ORDER BY e.name ASC
   `;
 
   const rows = await prisma.$queryRawUnsafe<{ id: string; name: string }[]>(
@@ -35,8 +35,8 @@ export async function calculateSegment(
 
   return {
     segmentName: segment.name,
-    deviceCount: rows.length,
-    deviceIds: rows.map((r) => r.id),
+    entityCount: rows.length,
+    entityIds: rows.map((r) => r.id),
     sql: fullSQL.replace(/\$1/, `'${tenantId}'`).replace(/\$\d+/g, (m) => {
       const i = parseInt(m.slice(1)) - 2;
       const val = params[i];
@@ -46,29 +46,29 @@ export async function calculateSegment(
 }
 
 /**
- * Predefined segments for common device groupings.
+ * Predefined segments for common entity groupings.
  */
 export const PREDEFINED_SEGMENTS: SegmentDefinition[] = [
   {
-    name: '在线设备',
-    description: '当前状态为在线的所有设备',
+    name: '活跃实体',
+    description: '当前状态为活跃的所有实体',
     relation: 'or',
-    rules: [{ type: 'profile', field: 'status', operator: '=', value: 'online' }],
+    rules: [{ type: 'profile', field: 'status', operator: '=', value: 'active' }],
   },
   {
-    name: '异常设备',
-    description: '状态为异常或健康度偏低的设备',
+    name: '异常实体',
+    description: '状态为异常的实体',
     relation: 'or',
     rules: [
       { type: 'profile', field: 'status', operator: '=', value: 'error' },
     ],
   },
   {
-    name: '离线设备',
-    description: '超过 1 小时未上报数据的设备',
+    name: '不活跃实体',
+    description: '状态为不活跃的实体',
     relation: 'or',
     rules: [
-      { type: 'profile', field: 'status', operator: '=', value: 'offline' },
+      { type: 'profile', field: 'status', operator: '=', value: 'inactive' },
     ],
   },
 ];

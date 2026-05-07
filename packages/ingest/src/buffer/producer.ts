@@ -1,5 +1,5 @@
 import { Kafka, type Producer } from 'kafkajs';
-import type { DataPoint } from '@ssas/core';
+import type { Event } from '@ssas/core';
 
 const TOPIC_RAW_EVENTS = 'ssas.raw.events';
 
@@ -24,9 +24,9 @@ export async function initProducer(broker: string = process.env.KAFKA_BROKER || 
 }
 
 /**
- * Send a single DataPoint to Kafka
+ * Send a single Event to Kafka
  */
-export async function sendDataPoint(data: DataPoint): Promise<void> {
+export async function sendEvent(event: Event): Promise<void> {
   if (!producer) {
     await initProducer();
   }
@@ -35,24 +35,24 @@ export async function sendDataPoint(data: DataPoint): Promise<void> {
     topic: TOPIC_RAW_EVENTS,
     messages: [
       {
-        key: data.deviceId,
-        value: JSON.stringify(data),
+        key: event.entityId,
+        value: JSON.stringify(event),
       },
     ],
   });
 }
 
 /**
- * Send multiple DataPoints as a batch
+ * Send multiple Events as a batch
  */
-export async function sendBatchDataPoints(dataPoints: DataPoint[]): Promise<void> {
+export async function sendBatchEvents(events: Event[]): Promise<void> {
   if (!producer) {
     await initProducer();
   }
 
-  const messages = dataPoints.map((dp) => ({
-    key: dp.deviceId,
-    value: JSON.stringify(dp),
+  const messages = events.map((e) => ({
+    key: e.entityId,
+    value: JSON.stringify(e),
   }));
 
   await producer!.send({
@@ -71,3 +71,7 @@ export async function disconnectProducer(): Promise<void> {
     console.log('[kafka] producer disconnected');
   }
 }
+
+// Backward compatibility aliases
+export const sendDataPoint = sendEvent;
+export const sendBatchDataPoints = sendBatchEvents;

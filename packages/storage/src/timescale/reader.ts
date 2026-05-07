@@ -1,25 +1,25 @@
 import { prisma } from '@ssas/database';
-import type { TimeSeriesQuery, AggregatedDataPoint } from '@ssas/core';
+import type { EventQuery, AggregatedEvent } from '@ssas/core';
 import { getCache, setCache, buildCacheKey } from '../query/cache.js';
 
 /**
- * Query time-series data with aggregation from TimescaleDB.
+ * Query events with aggregation from TimescaleDB.
  * Routes to continuous aggregate views when appropriate for performance.
  * Results are cached in Redis when available (60 s TTL).
  *
  * Note: Continuous aggregate views do NOT contain a `tags` column.
  * When tags filtering is requested, we fall back to the raw hypertable.
  */
-export async function queryDataPoints(query: TimeSeriesQuery): Promise<AggregatedDataPoint[]> {
+export async function queryEvents(query: EventQuery): Promise<AggregatedEvent[]> {
   // Cache lookup (skip when tags filter is present — too many permutations)
   const hasTagsFilter = query.filters && Object.keys(query.filters).length > 0;
   if (!hasTagsFilter) {
     const cacheKey = buildCacheKey('ts', query as unknown as Record<string, unknown>);
-    const cached = await getCache<AggregatedDataPoint[]>(cacheKey);
+    const cached = await getCache<AggregatedEvent[]>(cacheKey);
     if (cached) return cached;
   }
 
-  const result = await queryDataPointsRaw(query);
+  const result = await queryEventsRaw(query);
 
   // Store in cache (60 s TTL, only for non-tags queries)
   if (!hasTagsFilter) {
@@ -30,8 +30,8 @@ export async function queryDataPoints(query: TimeSeriesQuery): Promise<Aggregate
   return result;
 }
 
-async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDataPoint[]> {
-  const { deviceIds, metricNames, startTime, endTime, granularity, aggregation, filters, limit, offset } = query;
+async function queryEventsRaw(query: EventQuery): Promise<AggregatedEvent[]> {
+  const { entityIds, eventNames, startTime, endTime, granularity, aggregation, filters, limit, offset } = query;
 
   const hasTagsFilter = filters && Object.keys(filters).length > 0;
   const aggFn = getAggregateSQL(aggregation || 'avg');
@@ -41,7 +41,7 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
   let sourceTable: string;
   let timeColumn: string;
   if (hasTagsFilter) {
-    sourceTable = 'timescale.data_points';
+    sourceTable = 'timescale.events';
     timeColumn = 'time';
   } else {
     sourceTable = getAggregateView(granularity || '1h');
@@ -52,9 +52,9 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
   const params: unknown[] = [];
   let paramIndex = 1;
 
-  // Device filter
-  conditions.push(`device_id = ANY($${paramIndex++})`);
-  params.push(deviceIds);
+  // Entity filter
+  conditions.push(`entity_id = ANY($${paramIndex++})`);
+  params.push(entityIds);
 
   // Time range
   conditions.push(`${timeColumn} >= $${paramIndex++}`);
@@ -62,10 +62,10 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
   conditions.push(`${timeColumn} <= $${paramIndex++}`);
   params.push(endTime);
 
-  // Metric filter
-  if (metricNames && metricNames.length > 0) {
-    conditions.push(`metric_name = ANY($${paramIndex++})`);
-    params.push(metricNames);
+  // Event filter
+  if (eventNames && eventNames.length > 0) {
+    conditions.push(`event_name = ANY($${paramIndex++})`);
+    params.push(eventNames);
   }
 
   // Tags filter (JSONB) — only on raw table
@@ -81,12 +81,12 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
   const sql = `
     SELECT
       ${timeColumn} AS bucket,
-      device_id,
-      metric_name,
+      entity_id,
+      event_name,
       ${aggFn}
     FROM ${sourceTable}
     ${whereClause}
-    GROUP BY ${timeColumn}, device_id, metric_name
+    GROUP BY ${timeColumn}, entity_id, event_name
     ORDER BY ${timeColumn} DESC
     LIMIT $${paramIndex++}
     OFFSET $${paramIndex++}
@@ -97,8 +97,8 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
 
   return rows.map((row) => ({
     time: row.bucket as Date,
-    deviceId: row.device_id as string,
-    metricName: row.metric_name as string,
+    entityId: row.entity_id as string,
+    eventName: row.event_name as string,
     avg: row.avg_value as number | undefined,
     sum: row.sum_value as number | undefined,
     min: row.min_value as number | undefined,
@@ -109,35 +109,35 @@ async function queryDataPointsRaw(query: TimeSeriesQuery): Promise<AggregatedDat
 }
 
 /**
- * Get latest value for each metric of a device
+ * Get latest value for each event of an entity
  */
-export async function getLatestDataPoints(deviceId: string, metricName?: string): Promise<AggregatedDataPoint[]> {
-  const conditions: string[] = ['device_id = $1'];
-  const params: unknown[] = [deviceId];
+export async function getLatestEvents(entityId: string, eventName?: string): Promise<AggregatedEvent[]> {
+  const conditions: string[] = ['entity_id = $1'];
+  const params: unknown[] = [entityId];
   let paramIndex = 2;
 
-  if (metricName) {
-    conditions.push(`metric_name = $${paramIndex++}`);
-    params.push(metricName);
+  if (eventName) {
+    conditions.push(`event_name = $${paramIndex++}`);
+    params.push(eventName);
   }
 
   const sql = `
-    SELECT DISTINCT ON (metric_name)
+    SELECT DISTINCT ON (event_name)
       time AS bucket,
-      device_id,
-      metric_name,
+      entity_id,
+      event_name,
       value AS last_value
-    FROM timescale.data_points
+    FROM timescale.events
     WHERE ${conditions.join(' AND ')}
-    ORDER BY metric_name, time DESC
+    ORDER BY event_name, time DESC
   `;
 
   const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(sql, ...params);
 
   return rows.map((row) => ({
     time: row.bucket as Date,
-    deviceId: row.device_id as string,
-    metricName: row.metric_name as string,
+    entityId: row.entity_id as string,
+    eventName: row.event_name as string,
     last: row.last_value as number,
     count: 1,
   }));
@@ -152,15 +152,15 @@ function getAggregateView(granularity: string): string {
     case '5m':
     case '15m':
     case '30m':
-      return 'timescale.metric_1min';
+      return 'timescale.event_1min';
     case '1h':
     case '6h':
     case '12h':
-      return 'timescale.metric_1hour';
+      return 'timescale.event_1hour';
     case '1d':
-      return 'timescale.metric_1day';
+      return 'timescale.event_1day';
     default:
-      return 'timescale.metric_1hour';
+      return 'timescale.event_1hour';
   }
 }
 

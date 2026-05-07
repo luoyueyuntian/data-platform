@@ -1,14 +1,14 @@
-import { buildDeviceProfile } from './device-profile.js';
+import { buildEntityProfile } from './entity-profile.js';
 
 /**
- * Device scoring result with interpretation.
+ * Entity scoring result with interpretation.
  */
-export interface DeviceScoreResult {
-  deviceId: string;
+export interface EntityScoreResult {
+  entityId: string;
   healthScore: number;
   level: 'healthy' | 'normal' | 'warning' | 'critical';
   breakdown: {
-    onlineScore: number;
+    activeScore: number;
     completenessScore: number;
     anomalyScore: number;
   };
@@ -20,35 +20,34 @@ const NORMAL_THRESHOLD = 60;
 const WARNING_THRESHOLD = 40;
 
 /**
- * Score a device and return an interpreted result.
+ * Score an entity and return an interpreted result.
  */
-export async function scoreDevice(deviceId: string): Promise<DeviceScoreResult | null> {
-  const profile = await buildDeviceProfile(deviceId);
+export async function scoreEntity(entityId: string): Promise<EntityScoreResult | null> {
+  const profile = await buildEntityProfile(entityId);
   if (!profile) return null;
 
-  let level: DeviceScoreResult['level'];
+  let level: EntityScoreResult['level'];
   const suggestions: string[] = [];
 
   if (profile.healthScore >= HEALTHY_THRESHOLD) {
     level = 'healthy';
   } else if (profile.healthScore >= NORMAL_THRESHOLD) {
     level = 'normal';
-    if (profile.onlineRate < 0.8) suggestions.push('在线率偏低，请检查网络连接');
+    if (profile.activeRate < 0.8) suggestions.push('活跃率偏低，请检查连接');
     if (profile.dataCompleteness < 0.8) suggestions.push('数据上报不完整，可能存在丢包');
-    if (profile.anomalyRate > 0.1) suggestions.push('异常数据比例偏高，建议校准传感器');
+    if (profile.anomalyRate > 0.1) suggestions.push('异常数据比例偏高');
   } else if (profile.healthScore >= WARNING_THRESHOLD) {
     level = 'warning';
-    if (profile.onlineRate < 0.5) suggestions.push('设备频繁离线，建议检查供电和网络');
-    if (profile.dataCompleteness < 0.5) suggestions.push('数据大量缺失，设备可能故障');
-    if (profile.anomalyRate > 0.3) suggestions.push('异常数据占比过高，建议立即检修');
+    if (profile.activeRate < 0.5) suggestions.push('实体频繁离线，建议检查');
+    if (profile.dataCompleteness < 0.5) suggestions.push('数据大量缺失');
+    if (profile.anomalyRate > 0.3) suggestions.push('异常数据占比过高');
   } else {
     level = 'critical';
-    suggestions.push('设备健康度极低，建议立即安排现场检修');
-    suggestions.push('考虑将设备标记为"维护"状态');
+    suggestions.push('健康度极低，建议立即处理');
   }
 
   return {
-    deviceId,
+    entityId,
     healthScore: profile.healthScore,
     level,
     breakdown: profile.scoreBreakdown,
@@ -57,7 +56,7 @@ export async function scoreDevice(deviceId: string): Promise<DeviceScoreResult |
 }
 
 /**
- * Get score distribution for all devices in a tenant.
+ * Get score distribution for all entities in a tenant.
  */
 export async function getTenantScoreDistribution(tenantId: string): Promise<{
   healthy: number;
@@ -66,13 +65,13 @@ export async function getTenantScoreDistribution(tenantId: string): Promise<{
   critical: number;
   noData: number;
 }> {
-  const { buildTenantDeviceProfiles } = await import('./device-profile.js');
-  const profiles = await buildTenantDeviceProfiles(tenantId);
+  const { buildTenantEntityProfiles } = await import('./entity-profile.js');
+  const profiles = await buildTenantEntityProfiles(tenantId);
 
   const dist = { healthy: 0, normal: 0, warning: 0, critical: 0, noData: 0 };
 
   for (const p of profiles) {
-    if (p.totalDataPoints === 0) {
+    if (p.totalEvents === 0) {
       dist.noData++;
     } else if (p.healthScore >= HEALTHY_THRESHOLD) {
       dist.healthy++;
@@ -87,3 +86,7 @@ export async function getTenantScoreDistribution(tenantId: string): Promise<{
 
   return dist;
 }
+
+// Backward compatibility aliases
+export const scoreDevice = scoreEntity;
+export type DeviceScoreResult = EntityScoreResult;

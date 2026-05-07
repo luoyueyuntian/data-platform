@@ -1,22 +1,22 @@
 import { prisma } from '@ssas/database';
-import type { DataPoint } from '@ssas/core';
+import type { Event } from '@ssas/core';
 
-const COLUMNS = 'time, device_id, metric_name, value, sensor_id, tags, quality';
+const COLUMNS = 'time, entity_id, event_name, value, properties, tags, quality';
 const COL_COUNT = 7;
 const BATCH_SIZE = 500;
 
 /**
- * Batch insert data points into TimescaleDB hypertable.
+ * Batch insert events into TimescaleDB hypertable.
  * Uses fully parameterized queries to prevent SQL injection.
  * Large batches are split into sub-batches of BATCH_SIZE rows.
  */
-export async function writeDataPoints(points: DataPoint[]): Promise<number> {
-  if (points.length === 0) return 0;
+export async function writeEvents(events: Event[]): Promise<number> {
+  if (events.length === 0) return 0;
 
   let inserted = 0;
 
-  for (let i = 0; i < points.length; i += BATCH_SIZE) {
-    const batch = points.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < events.length; i += BATCH_SIZE) {
+    const batch = events.slice(i, i + BATCH_SIZE);
     inserted += await insertBatch(batch);
   }
 
@@ -27,30 +27,30 @@ export async function writeDataPoints(points: DataPoint[]): Promise<number> {
  * Insert a single batch using a parameterized multi-row INSERT.
  * Each row gets its own set of $N placeholders — no string interpolation.
  */
-async function insertBatch(batch: DataPoint[]): Promise<number> {
+async function insertBatch(batch: Event[]): Promise<number> {
   const valueClauses: string[] = [];
   const params: unknown[] = [];
   let idx = 1;
 
-  for (const p of batch) {
+  for (const e of batch) {
     valueClauses.push(
-      `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}::jsonb, $${idx++})`,
+      `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}::jsonb, $${idx++}::jsonb, $${idx++})`,
     );
     params.push(
-      p.time,
-      p.deviceId,
-      p.metricName,
-      p.value,
-      p.sensorId ?? null,
-      p.tags ? JSON.stringify(p.tags) : null,
-      p.quality ?? 100,
+      e.time,
+      e.entityId,
+      e.eventName,
+      e.value ?? null,
+      e.properties ? JSON.stringify(e.properties) : null,
+      e.tags ? JSON.stringify(e.tags) : null,
+      e.quality ?? 100,
     );
   }
 
   const sql = `
-    INSERT INTO timescale.data_points (${COLUMNS})
+    INSERT INTO timescale.events (${COLUMNS})
     VALUES ${valueClauses.join(', ')}
-    ON CONFLICT (time, device_id, metric_name) DO NOTHING
+    ON CONFLICT (time, entity_id, event_name) DO NOTHING
   `;
 
   await prisma.$executeRawUnsafe(sql, ...params);
@@ -58,9 +58,9 @@ async function insertBatch(batch: DataPoint[]): Promise<number> {
 }
 
 /**
- * Bulk insert — alias for writeDataPoints.
+ * Bulk insert — alias for writeEvents.
  * Retained for backward compatibility.
  */
-export async function bulkWriteDataPoints(points: DataPoint[]): Promise<number> {
-  return writeDataPoints(points);
+export async function bulkWriteEvents(events: Event[]): Promise<number> {
+  return writeEvents(events);
 }

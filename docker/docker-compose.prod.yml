@@ -14,7 +14,7 @@ services:
       MQTT_BROKER_URL: mqtt://mosquitto:1883
       JWT_SECRET: ${JWT_SECRET:-ssas-local-docker-jwt-secret-override-in-production}
       NODE_ENV: production
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,7 +41,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     ports:
-      - '3000:3000'
+      - '6080:3000'
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     depends_on:
@@ -74,6 +74,12 @@ services:
   # Single PostgreSQL instance with TimescaleDB extension
   postgres:
     image: timescale/timescaledb:latest-pg16
+    ports:
+      - '5432:5432'
+    command: >
+      postgres
+        -c shared_preload_libraries=timescaledb
+        -c max_connections=200
     environment:
       POSTGRES_USER: ssas
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ssas}
@@ -128,3 +134,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+

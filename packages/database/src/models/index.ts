@@ -3,24 +3,20 @@
  *
  * Usage:
  *   import { prisma } from '@ssas/database';
- *   const devices = await prisma.device.findMany({ where: { tenantId } });
+ *   const entities = await prisma.entity.findMany({ where: { tenantId } });
  */
-
-// Type re-exports will be added as needed:
-// export type { Device, Sensor, User, ... } from '@prisma/client';
 
 export type {
   Tenant,
   User,
-  Device,
-  Sensor,
-  DeviceGroup,
-  DeviceTag,
+  Entity,
+  EntityGroup,
+  EntityTag,
   AlertRule,
   AlertRecord,
   Dashboard,
   Panel,
-  DataPoint,
+  Event,
   ApiKey,
   AuditLog,
 } from '@prisma/client';

@@ -1,41 +1,44 @@
-import type { DataPoint } from '@ssas/core';
+import type { Event } from '@ssas/core';
 
 /**
- * Normalize various input formats to standard DataPoint
+ * Normalize various input formats to standard Event
  */
-export function normalizeDataPoint(input: {
-  deviceId: string;
-  metricName: string;
-  value: number;
+export function normalizeEvent(input: {
+  entityId: string;
+  eventName: string;
+  value?: number;
+  properties?: Record<string, unknown>;
   time?: string;
-  sensorId?: string;
   tags?: Record<string, string>;
   quality?: number;
-}): DataPoint {
+}): Event {
   return {
-    deviceId: input.deviceId,
+    entityId: input.entityId,
     time: input.time ? new Date(input.time) : new Date(),
-    metricName: input.metricName,
+    eventName: input.eventName,
     value: input.value,
-    sensorId: input.sensorId,
+    properties: input.properties,
     tags: input.tags,
     quality: input.quality ?? 100,
   };
 }
 
 /**
- * Normalize MQTT-style payload to standard DataPoint
+ * Normalize MQTT-style payload to standard Event (IoT → generic conversion)
  */
 export function normalizeMqttPayload(
   payload: { ts?: number; metric: string; value: number; quality?: number; tags?: Record<string, string> },
-  deviceId: string,
-): DataPoint {
+  entityId: string,
+): Event {
   return {
-    deviceId,
+    entityId,
     time: payload.ts ? new Date(payload.ts) : new Date(),
-    metricName: payload.metric,
+    eventName: payload.metric,
     value: payload.value,
     quality: payload.quality ?? 100,
     tags: payload.tags,
   };
 }
+
+// Backward compatibility alias
+export const normalizeDataPoint = normalizeEvent;

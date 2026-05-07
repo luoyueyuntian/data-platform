@@ -1,14 +1,12 @@
-import type { DataPoint } from '@ssas/core';
+import type { Event } from '@ssas/core';
 import { MqttDataPointSchema, MqttBatchPayloadSchema } from '../http/validator.js';
 
 /**
- * Parse a single MQTT telemetry message into a DataPoint.
+ * Parse a single MQTT telemetry message into an Event.
  *
- * Payload format:
- *   { "ts": 1700000000000, "metric": "temperature", "value": 36.5, "quality": 100 }
- *   { "ts": 1700000000000, "metric": "temperature", "value": 36.5, "tags": { "unit": "celsius" } }
+ * MQTT payload uses IoT naming (metric/value), converted to generic Event format.
  */
-export function parseTelemetryPayload(payload: string, deviceId: string): DataPoint[] {
+export function parseTelemetryPayload(payload: string, entityId: string): Event[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payload);
@@ -24,9 +22,9 @@ export function parseTelemetryPayload(payload: string, deviceId: string): DataPo
   const { ts, metric, value, quality, tags } = result.data;
 
   return [{
-    deviceId,
+    entityId,
     time: ts ? new Date(ts) : new Date(),
-    metricName: metric,
+    eventName: metric,
     value,
     quality: quality ?? 100,
     tags,
@@ -34,13 +32,9 @@ export function parseTelemetryPayload(payload: string, deviceId: string): DataPo
 }
 
 /**
- * Parse a batch MQTT telemetry message into multiple DataPoints.
- *
- * Payload formats:
- *   { "ts": 1700000000000, "values": { "temperature": 36.5, "humidity": 65.2 } }
- *   { "ts": 1700000000000, "metrics": [{ "name": "temperature", "value": 36.5 }, ...] }
+ * Parse a batch MQTT telemetry message into multiple Events.
  */
-export function parseBatchTelemetryPayload(payload: string, deviceId: string): DataPoint[] {
+export function parseBatchTelemetryPayload(payload: string, entityId: string): Event[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payload);
@@ -55,28 +49,26 @@ export function parseBatchTelemetryPayload(payload: string, deviceId: string): D
 
   const data = result.data;
   const timestamp = data.ts ? new Date(data.ts) : new Date();
-  const points: DataPoint[] = [];
+  const events: Event[] = [];
 
-  // Format 1: { "values": { "temp": 36.5, "hum": 65.2 } }
   if (data.values) {
-    for (const [metricName, value] of Object.entries(data.values)) {
-      points.push({
-        deviceId,
+    for (const [eventName, value] of Object.entries(data.values)) {
+      events.push({
+        entityId,
         time: timestamp,
-        metricName,
+        eventName,
         value,
         quality: 100,
       });
     }
   }
 
-  // Format 2: { "metrics": [{ "name": "temp", "value": 36.5, "tags": {} }] }
   if (data.metrics) {
     for (const m of data.metrics) {
-      points.push({
-        deviceId,
+      events.push({
+        entityId,
         time: timestamp,
-        metricName: m.name,
+        eventName: m.name,
         value: m.value,
         tags: m.tags,
         quality: 100,
@@ -84,14 +76,11 @@ export function parseBatchTelemetryPayload(payload: string, deviceId: string): D
     }
   }
 
-  return points;
+  return events;
 }
 
 /**
  * Parse a device status message.
- *
- * Payload format:
- *   { "status": "online" | "offline" | "error", "message"?: "..." }
  */
 export function parseStatusPayload(payload: string): { status: string; message?: string } {
   let parsed: Record<string, unknown>;
@@ -101,8 +90,8 @@ export function parseStatusPayload(payload: string): { status: string; message?:
     throw new Error('Invalid JSON payload');
   }
 
-  const validStatuses = ['online', 'offline', 'error', 'maintenance'];
-  const status = String(parsed.status || 'online');
+  const validStatuses = ['active', 'inactive', 'error', 'maintenance'];
+  const status = String(parsed.status || 'active');
 
   if (!validStatuses.includes(status)) {
     throw new Error(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);

@@ -2,30 +2,30 @@ import { prisma } from '../client.js';
 
 export const TagRepository = {
   async findById(id: string) {
-    return prisma.deviceTag.findUnique({ where: { id } });
+    return prisma.entityTag.findUnique({ where: { id } });
   },
 
-  async findByDeviceId(deviceId: string) {
-    return prisma.deviceTag.findMany({
-      where: { deviceId },
+  async findByEntityId(entityId: string) {
+    return prisma.entityTag.findMany({
+      where: { entityId },
       orderBy: { createdAt: 'desc' },
     });
   },
 
   async create(data: {
-    deviceId: string;
+    entityId: string;
     key: string;
     value: string;
     source?: string;
   }) {
-    return prisma.deviceTag.create({ data });
+    return prisma.entityTag.create({ data });
   },
 
   async delete(id: string) {
-    return prisma.deviceTag.delete({ where: { id } });
+    return prisma.entityTag.delete({ where: { id } });
   },
 
-  async deleteByKey(deviceId: string, key: string) {
-    return prisma.deviceTag.deleteMany({ where: { deviceId, key } });
+  async deleteByKey(entityId: string, key: string) {
+    return prisma.entityTag.deleteMany({ where: { entityId, key } });
   },
 };

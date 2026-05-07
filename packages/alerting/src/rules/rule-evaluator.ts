@@ -8,7 +8,7 @@ export interface EvaluationResult {
   severity: 'info' | 'warn' | 'critical';
   message: string;
   triggeredValue: number;
-  deviceId?: string;
+  entityId?: string;
 }
 
 /**
@@ -26,12 +26,10 @@ export async function evaluateAllRules(): Promise<EvaluationResult[]> {
     const conditions = rule.conditions as unknown as AlertCondition[];
     const logic = rule.conditionLogic as 'all' | 'any';
 
-    // Evaluate each condition
     const conditionResults = await Promise.all(
       conditions.map((cond) => evaluateCondition(cond, rule.tenantId))
     );
 
-    // Combine based on logic
     const triggered = logic === 'all'
       ? conditionResults.every((r) => r.triggered)
       : conditionResults.some((r) => r.triggered);
@@ -58,21 +56,16 @@ export async function evaluateAllRules(): Promise<EvaluationResult[]> {
   return results;
 }
 
-/**
- * Evaluate a single alert condition.
- */
 async function evaluateCondition(condition: AlertCondition, tenantId?: string): Promise<{
   triggered: boolean;
   currentValue: number;
   severity: 'info' | 'warn' | 'critical';
   description: string;
 }> {
-  const { metricName, operator, threshold, window: windowStr } = condition;
+  const { eventName, operator, threshold, window: windowStr } = condition;
 
-  // Query the current metric value
-  const currentValue = await getMetricCurrentValue(metricName, windowStr ?? '5m', tenantId);
+  const currentValue = await getEventCurrentValue(eventName, windowStr ?? '5m', tenantId);
 
-  // Evaluate the condition
   let triggered = false;
   let severity: 'info' | 'warn' | 'critical' = 'warn';
 
@@ -102,8 +95,7 @@ async function evaluateCondition(condition: AlertCondition, tenantId?: string): 
       severity = 'warn';
       break;
     case 'change_pct': {
-      // Compare with previous period
-      const prevValue = await getMetricPreviousValue(metricName, windowStr ?? '5m', tenantId);
+      const prevValue = await getEventPreviousValue(eventName, windowStr ?? '5m', tenantId);
       if (prevValue !== null) {
         const change = ((currentValue - prevValue) / Math.abs(prevValue)) * 100;
         triggered = Math.abs(change) > threshold;
@@ -112,8 +104,7 @@ async function evaluateCondition(condition: AlertCondition, tenantId?: string): 
       break;
     }
     case 'anomaly': {
-      // Simple anomaly: value is N standard deviations from rolling mean
-      const stats = await getMetricStats(metricName, windowStr ?? '5m', tenantId);
+      const stats = await getEventStats(eventName, windowStr ?? '5m', tenantId);
       if (stats && stats.stddev > 0) {
         const deviations = Math.abs(currentValue - stats.mean) / stats.stddev;
         triggered = deviations > threshold;
@@ -123,61 +114,52 @@ async function evaluateCondition(condition: AlertCondition, tenantId?: string): 
     }
   }
 
-  const description = `${metricName} = ${currentValue.toFixed(2)} ${operator} ${threshold}`;
+  const description = `${eventName} = ${currentValue.toFixed(2)} ${operator} ${threshold}`;
 
   return { triggered, currentValue, severity, description };
 }
 
-/**
- * Query the current (latest) value for a metric within a time window.
- */
-async function getMetricCurrentValue(metricName: string, window: string, tenantId?: string): Promise<number> {
+async function getEventCurrentValue(eventName: string, window: string, tenantId?: string): Promise<number> {
   const windowMinutes = parseWindow(window);
   const since = new Date(Date.now() - windowMinutes * 60 * 1000);
 
   const result = await prisma.$queryRawUnsafe<{ value: number }[]>(
-    `SELECT AVG(dp.value) as value FROM timescale.data_points dp
-     ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-     WHERE dp.metric_name = $1 AND dp.time >= $2
-     ${tenantId ? 'AND d.tenant_id = $3::uuid' : ''}`,
-    ...(tenantId ? [metricName, since, tenantId] : [metricName, since])
+    `SELECT AVG(ev.value) as value FROM timescale.events ev
+     ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+     WHERE ev.event_name = $1 AND ev.time >= $2
+     ${tenantId ? 'AND e.tenant_id = $3::uuid' : ''}`,
+    ...(tenantId ? [eventName, since, tenantId] : [eventName, since])
   );
 
   return result[0]?.value ?? 0;
 }
 
-/**
- * Query the previous period's value for change comparison.
- */
-async function getMetricPreviousValue(metricName: string, window: string, tenantId?: string): Promise<number | null> {
+async function getEventPreviousValue(eventName: string, window: string, tenantId?: string): Promise<number | null> {
   const windowMinutes = parseWindow(window);
   const end = new Date(Date.now() - windowMinutes * 60 * 1000);
   const start = new Date(end.getTime() - windowMinutes * 60 * 1000);
 
   const result = await prisma.$queryRawUnsafe<{ value: number }[]>(
-    `SELECT AVG(dp.value) as value FROM timescale.data_points dp
-     ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-     WHERE dp.metric_name = $1 AND dp.time >= $2 AND dp.time < $3
-     ${tenantId ? 'AND d.tenant_id = $4::uuid' : ''}`,
-    ...(tenantId ? [metricName, start, end, tenantId] : [metricName, start, end])
+    `SELECT AVG(ev.value) as value FROM timescale.events ev
+     ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+     WHERE ev.event_name = $1 AND ev.time >= $2 AND ev.time < $3
+     ${tenantId ? 'AND e.tenant_id = $4::uuid' : ''}`,
+    ...(tenantId ? [eventName, start, end, tenantId] : [eventName, start, end])
   );
 
   return result[0]?.value ?? null;
 }
 
-/**
- * Get mean and stddev for anomaly detection.
- */
-async function getMetricStats(metricName: string, window: string, tenantId?: string): Promise<{ mean: number; stddev: number } | null> {
+async function getEventStats(eventName: string, window: string, tenantId?: string): Promise<{ mean: number; stddev: number } | null> {
   const windowMinutes = parseWindow(window);
   const since = new Date(Date.now() - windowMinutes * 60 * 1000);
 
   const result = await prisma.$queryRawUnsafe<{ mean: number; stddev: number }[]>(
-    `SELECT AVG(dp.value) as mean, STDDEV(dp.value) as stddev FROM timescale.data_points dp
-     ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-     WHERE dp.metric_name = $1 AND dp.time >= $2
-     ${tenantId ? 'AND d.tenant_id = $3::uuid' : ''}`,
-    ...(tenantId ? [metricName, since, tenantId] : [metricName, since])
+    `SELECT AVG(ev.value) as mean, STDDEV(ev.value) as stddev FROM timescale.events ev
+     ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+     WHERE ev.event_name = $1 AND ev.time >= $2
+     ${tenantId ? 'AND e.tenant_id = $3::uuid' : ''}`,
+    ...(tenantId ? [eventName, since, tenantId] : [eventName, since])
   );
 
   return result[0]?.mean != null ? { mean: result[0].mean, stddev: result[0].stddev ?? 0 } : null;
@@ -185,7 +167,7 @@ async function getMetricStats(metricName: string, window: string, tenantId?: str
 
 function parseWindow(window: string): number {
   const match = window.match(/^(\d+)(m|h|d)$/);
-  if (!match) return 5; // default 5 minutes
+  if (!match) return 5;
   const value = parseInt(match[1], 10);
   switch (match[2]) {
     case 'm': return value;

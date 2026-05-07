@@ -21,6 +21,7 @@
     "db:migrate:prod": "pnpm -F @ssas/database db:migrate:prod",
     "db:studio": "pnpm -F @ssas/database db:studio",
     "db:seed": "tsx scripts/seed.ts",
+    "db:seed:test": "tsx scripts/generate-data.ts",
     "setup": "bash scripts/setup.sh"
   },
   "devDependencies": {

@@ -1,13 +1,12 @@
 import { prisma } from '../client.js';
 import { Prisma } from '@prisma/client';
 
-const deviceInclude = {
+const entityInclude = {
   group: { select: { id: true, name: true } },
-  sensors: { select: { id: true, name: true, type: true, unit: true } },
   tags: { select: { id: true, key: true, value: true, source: true } },
-} satisfies Prisma.DeviceInclude;
+} satisfies Prisma.EntityInclude;
 
-export interface DeviceListParams {
+export interface EntityListParams {
   tenantId: string;
   page: number;
   pageSize: number;
@@ -18,11 +17,11 @@ export interface DeviceListParams {
   phase?: string;
 }
 
-export interface DeviceListResult {
+export interface EntityListResult {
   data: Array<{
     id: string;
     name: string;
-    deviceKey: string;
+    entityKey: string;
     type: string;
     status: string;
     phase: string;
@@ -31,7 +30,7 @@ export interface DeviceListResult {
     lastSeenAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    _count: { sensors: number; tags: number };
+    _count: { tags: number };
   }>;
   total: number;
   page: number;
@@ -39,19 +38,19 @@ export interface DeviceListResult {
   totalPages: number;
 }
 
-export const DeviceRepository = {
+export const EntityRepository = {
   /**
-   * List devices with pagination, search, and filtering.
+   * List entities with pagination, search, and filtering.
    */
-  async findAll(params: DeviceListParams): Promise<DeviceListResult> {
+  async findAll(params: EntityListParams): Promise<EntityListResult> {
     const { tenantId, page, pageSize, search, status, type, groupId, phase } = params;
 
-    const where: Prisma.DeviceWhereInput = { tenantId };
+    const where: Prisma.EntityWhereInput = { tenantId };
 
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { deviceKey: { contains: search, mode: 'insensitive' } },
+        { entityKey: { contains: search, mode: 'insensitive' } },
       ];
     }
     if (status) where.status = status;
@@ -60,24 +59,24 @@ export const DeviceRepository = {
     if (phase) where.phase = phase;
 
     const [data, total] = await Promise.all([
-      prisma.device.findMany({
+      prisma.entity.findMany({
         where,
         include: {
           group: { select: { id: true, name: true } },
-          _count: { select: { sensors: true, tags: true } },
+          _count: { select: { tags: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.device.count({ where }),
+      prisma.entity.count({ where }),
     ]);
 
     return {
       data: data.map((d) => ({
         id: d.id,
         name: d.name,
-        deviceKey: d.deviceKey,
+        entityKey: d.entityKey,
         type: d.type,
         status: d.status,
         phase: d.phase,
@@ -86,7 +85,7 @@ export const DeviceRepository = {
         lastSeenAt: d.lastSeenAt,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
-        _count: { sensors: d._count.sensors, tags: d._count.tags },
+        _count: { tags: d._count.tags },
       })),
       total,
       page,
@@ -96,31 +95,31 @@ export const DeviceRepository = {
   },
 
   /**
-   * Find device by ID with full relations.
+   * Find entity by ID with full relations.
    */
   async findById(id: string, tenantId: string) {
-    return prisma.device.findFirst({
+    return prisma.entity.findFirst({
       where: { id, tenantId },
-      include: deviceInclude,
+      include: entityInclude,
     });
   },
 
   /**
-   * Find device by deviceKey (unique across tenant).
+   * Find entity by entityKey (unique across tenant).
    */
-  async findByDeviceKey(deviceKey: string, tenantId: string) {
-    return prisma.device.findFirst({
-      where: { deviceKey, tenantId },
+  async findByEntityKey(entityKey: string, tenantId: string) {
+    return prisma.entity.findFirst({
+      where: { entityKey, tenantId },
     });
   },
 
   /**
-   * Create a new device.
+   * Create a new entity.
    */
   async create(data: {
     tenantId: string;
     name: string;
-    deviceKey: string;
+    entityKey: string;
     type?: string;
     status?: string;
     groupId?: string;
@@ -134,23 +133,23 @@ export const DeviceRepository = {
       ? Prisma.DbNull
       : data.metadata as Prisma.InputJsonValue;
 
-    return prisma.device.create({
+    return prisma.entity.create({
       data: {
         tenantId: data.tenantId,
         name: data.name,
-        deviceKey: data.deviceKey,
+        entityKey: data.entityKey,
         type: data.type ?? 'custom',
-        status: data.status ?? 'offline',
+        status: data.status ?? 'inactive',
         groupId: data.groupId,
         location,
         metadata,
       },
-      include: deviceInclude,
+      include: entityInclude,
     });
   },
 
   /**
-   * Update an existing device.
+   * Update an existing entity.
    */
   async update(id: string, tenantId: string, data: {
     name?: string;
@@ -161,8 +160,7 @@ export const DeviceRepository = {
     location?: Record<string, unknown> | null;
     metadata?: Record<string, unknown> | null;
   }) {
-    // Build update payload, handling null/undefined
-    const updateData: Prisma.DeviceUncheckedUpdateManyInput = {};
+    const updateData: Prisma.EntityUncheckedUpdateManyInput = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.type !== undefined) updateData.type = data.type;
     if (data.status !== undefined) updateData.status = data.status;
@@ -179,36 +177,35 @@ export const DeviceRepository = {
         : data.metadata as Prisma.InputJsonValue;
     }
 
-    return prisma.device.updateMany({
+    return prisma.entity.updateMany({
       where: { id, tenantId },
       data: updateData,
     });
   },
 
   /**
-   * Delete a device (hard delete).
+   * Delete an entity (hard delete).
    */
   async delete(id: string, tenantId: string) {
-    return prisma.device.deleteMany({
+    return prisma.entity.deleteMany({
       where: { id, tenantId },
     });
   },
 
   /**
-   * Update device status.
+   * Update entity status.
    */
   async updateStatus(id: string, tenantId: string, status: string, lastSeenAt?: Date) {
-    const data: Prisma.DeviceUncheckedUpdateManyInput = { status };
+    const data: Prisma.EntityUncheckedUpdateManyInput = { status };
     if (lastSeenAt) data.lastSeenAt = lastSeenAt;
     // Phase transitions
-    if (status === 'online' || status === 'offline') {
-      // Auto-transition from registered → active on first data
-      const device = await prisma.device.findFirst({ where: { id, tenantId } });
-      if (device && device.phase === 'registered') {
+    if (status === 'active' || status === 'inactive') {
+      const entity = await prisma.entity.findFirst({ where: { id, tenantId } });
+      if (entity && entity.phase === 'registered') {
         data.phase = 'active';
       }
     }
-    return prisma.device.updateMany({
+    return prisma.entity.updateMany({
       where: { id, tenantId },
       data,
     });
@@ -218,24 +215,24 @@ export const DeviceRepository = {
    * Update last seen timestamp.
    */
   async updateLastSeen(id: string, tenantId: string) {
-    return prisma.device.updateMany({
+    return prisma.entity.updateMany({
       where: { id, tenantId },
-      data: { lastSeenAt: new Date(), status: 'online' },
+      data: { lastSeenAt: new Date(), status: 'active' },
     });
   },
 
   /**
-   * Get device statistics for a tenant.
+   * Get entity statistics for a tenant.
    */
   async getStats(tenantId: string) {
     const [total, byStatus, byType] = await Promise.all([
-      prisma.device.count({ where: { tenantId } }),
-      prisma.device.groupBy({
+      prisma.entity.count({ where: { tenantId } }),
+      prisma.entity.groupBy({
         by: ['status'],
         where: { tenantId },
         _count: true,
       }),
-      prisma.device.groupBy({
+      prisma.entity.groupBy({
         by: ['type'],
         where: { tenantId },
         _count: true,

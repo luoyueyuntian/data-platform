@@ -57,7 +57,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers,
   });
 
-  // Server rejected the token — clear it and redirect to login
   if (res.status === 401 && typeof window !== 'undefined') {
     localStorage.removeItem('ssas_token');
     localStorage.removeItem('ssas_refresh_token');
@@ -115,26 +114,26 @@ export const authApi = {
 };
 
 // ======================
-// Device API
+// Entity API
 // ======================
 
-export interface DeviceListItem {
+export interface EntityListItem {
   id: string;
   name: string;
-  deviceKey: string;
+  entityKey: string;
   type: string;
   status: string;
   phase: string;
   group: { id: string; name: string } | null;
   lastSeenAt: string | null;
   createdAt: string;
-  _count: { sensors: number; tags: number };
+  _count: { tags: number };
 }
 
-export interface DeviceDetail {
+export interface EntityDetail {
   id: string;
   name: string;
-  deviceKey: string;
+  entityKey: string;
   type: string;
   status: string;
   phase: string;
@@ -142,13 +141,12 @@ export interface DeviceDetail {
   location: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   lastSeenAt: string | null;
-  sensors: Array<{ id: string; name: string; type: string; unit: string }>;
   tags: Array<{ id: string; key: string; value: string; source: string }>;
   createdAt: string;
   updatedAt: string;
 }
 
-export const deviceApi = {
+export const entityApi = {
   list: (params?: { page?: number; pageSize?: number; search?: string; status?: string; type?: string }) => {
     const q = new URLSearchParams();
     if (params?.page) q.set('page', String(params.page));
@@ -156,43 +154,52 @@ export const deviceApi = {
     if (params?.search) q.set('search', params.search);
     if (params?.status) q.set('status', params.status);
     if (params?.type) q.set('type', params.type);
-    return request<DeviceListItem[]>('GET', `/devices?${q}`, undefined, getToken());
+    return request<EntityListItem[]>('GET', `/entities?${q}`, undefined, getToken());
   },
   get: (id: string) =>
-    request<DeviceDetail>('GET', `/devices/${id}`, undefined, getToken()),
-  create: (data: { name: string; deviceKey: string; type?: string; groupId?: string }) =>
-    request<DeviceDetail>('POST', '/devices', data, getToken()),
+    request<EntityDetail>('GET', `/entities/${id}`, undefined, getToken()),
+  create: (data: { name: string; entityKey: string; type?: string; groupId?: string }) =>
+    request<EntityDetail>('POST', '/entities', data, getToken()),
   update: (id: string, data: Record<string, unknown>) =>
-    request<DeviceDetail>('PUT', `/devices/${id}`, data, getToken()),
+    request<EntityDetail>('PUT', `/entities/${id}`, data, getToken()),
   delete: (id: string) =>
-    request<void>('DELETE', `/devices/${id}`, undefined, getToken()),
+    request<void>('DELETE', `/entities/${id}`, undefined, getToken()),
 };
 
+// Backward compatibility alias
+export const deviceApi = entityApi;
+export type DeviceListItem = EntityListItem;
+export type DeviceDetail = EntityDetail;
+
 // ======================
-// Data API
+// Event API
 // ======================
 
-export interface DataQueryParams {
-  deviceIds: string;
-  metricNames?: string;
+export interface EventQueryParams {
+  entityIds: string;
+  eventNames?: string;
   startTime: string;
   endTime: string;
   granularity?: string;
   aggregation?: string;
 }
 
-export const dataApi = {
-  ingest: (data: { deviceId: string; metricName: string; value: number; time?: string }) =>
-    request('POST', '/data/ingest', data, getToken()),
-  query: (params: DataQueryParams) => {
+export const eventApi = {
+  ingest: (data: { entityId: string; eventName: string; value?: number; properties?: Record<string, unknown>; time?: string }) =>
+    request('POST', '/events/ingest', data, getToken()),
+  query: (params: EventQueryParams) => {
     const q = new URLSearchParams(params as unknown as Record<string, string>);
-    return request<unknown[]>('GET', `/data/query?${q}`, undefined, getToken());
+    return request<unknown[]>('GET', `/events/query?${q}`, undefined, getToken());
   },
-  latest: (deviceId: string, metricName?: string) => {
-    const q = metricName ? `?metricName=${metricName}` : '';
-    return request<unknown[]>('GET', `/data/latest/${deviceId}${q}`, undefined, getToken());
+  latest: (entityId: string, eventName?: string) => {
+    const q = eventName ? `?eventName=${eventName}` : '';
+    return request<unknown[]>('GET', `/events/latest/${entityId}${q}`, undefined, getToken());
   },
 };
+
+// Backward compatibility alias
+export const dataApi = eventApi;
+export type DataQueryParams = EventQueryParams;
 
 // ======================
 // Alert API

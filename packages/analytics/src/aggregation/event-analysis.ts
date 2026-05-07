@@ -1,11 +1,11 @@
 import { prisma } from '@ssas/database';
-import type { EventAnalysisQuery, AggregatedDataPoint } from '@ssas/core';
+import type { EventAnalysisQuery, AggregatedEvent } from '@ssas/core';
 
 /**
  * Execute an event analysis query against TimescaleDB.
  *
  * 对标神策 Event Analysis:
- *   measures[].event_name → metricName
+ *   measures[].event_name → eventName
  *   measures[].aggregator → aggregation (general→count, numeric→sum/avg/etc)
  *   by_fields → groupBy
  *   filter.conditions → filters
@@ -14,10 +14,10 @@ import type { EventAnalysisQuery, AggregatedDataPoint } from '@ssas/core';
  * Routes to the appropriate continuous aggregate view based on granularity.
  */
 export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
-  data: AggregatedDataPoint[];
+  data: AggregatedEvent[];
   total: number;
 }> {
-  const { metricName, aggregation, groupBy, filters, timeRange, granularity } = query;
+  const { eventName, aggregation, groupBy, filters, timeRange, granularity } = query;
   const tenantId = (query as EventAnalysisQuery & { tenantId?: string }).tenantId;
 
   // Determine which continuous aggregate view to use
@@ -28,9 +28,9 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
   const params: unknown[] = [];
   let idx = 1;
 
-  // Metric filter
-  conditions.push(`ts.metric_name = $${idx++}`);
-  params.push(metricName);
+  // Event filter
+  conditions.push(`ts.event_name = $${idx++}`);
+  params.push(eventName);
 
   // Time range
   conditions.push(`ts.bucket >= $${idx++}`);
@@ -39,15 +39,15 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
   params.push(timeRange.end);
 
   if (tenantId) {
-    conditions.push(`d.tenant_id = $${idx++}::uuid`);
+    conditions.push(`e.tenant_id = $${idx++}::uuid`);
     params.push(tenantId);
   }
 
-  // Device filter (if provided via filters)
+  // Entity filter (if provided via filters)
   if (filters) {
     for (const f of filters) {
-      if (f.field === 'deviceId' && f.operator === 'in') {
-        conditions.push(`ts.device_id = ANY($${idx++})`);
+      if (f.field === 'entityId' && f.operator === 'in') {
+        conditions.push(`ts.entity_id = ANY($${idx++}::uuid[])`);
         params.push(f.value);
       }
     }
@@ -55,7 +55,7 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
 
   const whereClause = conditions.join(' AND ');
   const fromClause = tenantId
-    ? `${viewName} ts INNER JOIN public.devices d ON d.id = ts.device_id`
+    ? `${viewName} ts INNER JOIN public.entities e ON e.id = ts.entity_id`
     : `${viewName} ts`;
 
   // Build group-by clause
@@ -64,13 +64,13 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
 
   if (groupBy && groupBy.length > 0) {
     for (const field of groupBy) {
-      if (field === 'deviceId' || field === 'device_id') {
-        groupFields.push('ts.device_id');
-        selectFields.push('ts.device_id AS device_id');
+      if (field === 'entityId' || field === 'entity_id') {
+        groupFields.push('ts.entity_id');
+        selectFields.push('ts.entity_id AS entity_id');
       }
-      if (field === 'metricName' || field === 'metric_name') {
-        groupFields.push('ts.metric_name');
-        selectFields.push('ts.metric_name AS metric_name');
+      if (field === 'eventName' || field === 'event_name') {
+        groupFields.push('ts.event_name');
+        selectFields.push('ts.event_name AS event_name');
       }
     }
   }
@@ -101,10 +101,10 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
 
   const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(dataSQL, ...params);
 
-  const data: AggregatedDataPoint[] = rows.map((row) => ({
+  const data: AggregatedEvent[] = rows.map((row) => ({
     time: row.bucket as Date,
-    deviceId: row.device_id as string,
-    metricName: row.metric_name as string,
+    entityId: row.entity_id as string,
+    eventName: row.event_name as string,
     avg: row.agg_value as number | undefined,
     count: Number(row.agg_count ?? 0),
     last: row.agg_value as number | undefined,
@@ -114,10 +114,10 @@ export async function eventAnalysis(query: EventAnalysisQuery): Promise<{
 }
 
 function resolveView(granularity: string): string {
-  if (['1m', '5m', '15m', '30m'].includes(granularity)) return 'timescale.metric_1min';
-  if (['1h', '6h', '12h'].includes(granularity)) return 'timescale.metric_1hour';
-  if (['1d'].includes(granularity)) return 'timescale.metric_1day';
-  return 'timescale.metric_1hour';
+  if (['1m', '5m', '15m', '30m'].includes(granularity)) return 'timescale.event_1min';
+  if (['1h', '6h', '12h'].includes(granularity)) return 'timescale.event_1hour';
+  if (['1d'].includes(granularity)) return 'timescale.event_1day';
+  return 'timescale.event_1hour';
 }
 
 function resolveAggregation(aggregation: string): string {

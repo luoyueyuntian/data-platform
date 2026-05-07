@@ -1,25 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DataPointSchema,
-  DataPointBatchSchema,
+  EventSchema,
+  EventBatchSchema,
   MqttDataPointSchema,
   MqttBatchPayloadSchema,
 } from './validator';
 
-describe('DataPointSchema', () => {
-  const validPoint = {
-    deviceId: '123e4567-e89b-12d3-a456-426614174000',
-    metricName: 'temperature',
-    value: 25.5,
+describe('EventSchema', () => {
+  const validEvent = {
+    entityId: '123e4567-e89b-12d3-a456-426614174000',
+    eventName: 'temperature',
   };
 
-  it('should accept valid data point', () => {
-    const result = DataPointSchema.safeParse(validPoint);
+  it('should accept valid event', () => {
+    const result = EventSchema.safeParse(validEvent);
     expect(result.success).toBe(true);
   });
 
   it('should apply defaults', () => {
-    const result = DataPointSchema.safeParse(validPoint);
+    const result = EventSchema.safeParse(validEvent);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.quality).toBe(100);
@@ -27,80 +26,80 @@ describe('DataPointSchema', () => {
   });
 
   it('should accept optional fields', () => {
-    const result = DataPointSchema.safeParse({
-      ...validPoint,
+    const result = EventSchema.safeParse({
+      ...validEvent,
+      value: 25.5,
       time: '2026-04-30T12:00:00Z',
-      sensorId: '123e4567-e89b-12d3-a456-426614174001',
+      properties: { unit: '°C' },
       tags: { zone: 'reactor-1' },
       quality: 95,
     });
     expect(result.success).toBe(true);
   });
 
-  it('should reject invalid deviceId', () => {
-    const result = DataPointSchema.safeParse({
-      ...validPoint,
-      deviceId: 'not-a-uuid',
+  it('should reject invalid entityId', () => {
+    const result = EventSchema.safeParse({
+      ...validEvent,
+      entityId: 'not-a-uuid',
     });
     expect(result.success).toBe(false);
   });
 
-  it('should reject empty metricName', () => {
-    const result = DataPointSchema.safeParse({
-      ...validPoint,
-      metricName: '',
+  it('should reject empty eventName', () => {
+    const result = EventSchema.safeParse({
+      ...validEvent,
+      eventName: '',
     });
     expect(result.success).toBe(false);
   });
 
-  it('should reject metricName > 100 chars', () => {
-    const result = DataPointSchema.safeParse({
-      ...validPoint,
-      metricName: 'a'.repeat(101),
+  it('should reject eventName > 100 chars', () => {
+    const result = EventSchema.safeParse({
+      ...validEvent,
+      eventName: 'a'.repeat(101),
     });
     expect(result.success).toBe(false);
   });
 
   it('should reject quality out of range', () => {
-    const result = DataPointSchema.safeParse({
-      ...validPoint,
+    const result = EventSchema.safeParse({
+      ...validEvent,
       quality: 101,
     });
     expect(result.success).toBe(false);
   });
 });
 
-describe('DataPointBatchSchema', () => {
+describe('EventBatchSchema', () => {
   const validBatch = {
-    deviceId: '123e4567-e89b-12d3-a456-426614174000',
-    dataPoints: [
-      { metricName: 'temperature', value: 25.5 },
-      { metricName: 'humidity', value: 60.0 },
+    entityId: '123e4567-e89b-12d3-a456-426614174000',
+    events: [
+      { eventName: 'temperature', value: 25.5 },
+      { eventName: 'humidity', value: 60.0 },
     ],
   };
 
   it('should accept valid batch', () => {
-    const result = DataPointBatchSchema.safeParse(validBatch);
-    // May fail due to UUID validation in deviceId
+    const result = EventBatchSchema.safeParse(validBatch);
     expect(result.success).toBeDefined();
   });
 
-  it('should reject empty dataPoints array', () => {
-    const result = DataPointBatchSchema.safeParse({
+  it('should reject empty events array', () => {
+    const result = EventBatchSchema.safeParse({
       ...validBatch,
-      dataPoints: [],
+      events: [],
     });
     expect(result.success).toBe(false);
   });
 
   it('should reject batch > 1000 items', () => {
-    const dataPoints = Array.from({ length: 1001 }, (_, i) => ({
-      metricName: `metric_${i}`,
+    const events = Array.from({ length: 1001 }, (_, i) => ({
+      eventName: `event_${i}`,
       value: i,
     }));
-    const result = DataPointBatchSchema.safeParse({
+    const result = EventBatchSchema.safeParse({
       ...validBatch,
-      dataPoints,
+      events,
     });
     expect(result.success).toBe(false);
   });

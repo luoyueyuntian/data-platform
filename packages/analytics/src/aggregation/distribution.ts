@@ -6,7 +6,7 @@ export interface DistributionBucket {
   bucketMax: number;
   label: string;
   count: number;
-  devices: number;
+  entities: number;
   percentage: number;
 }
 
@@ -22,50 +22,41 @@ export interface DistributionStatistics {
 }
 
 export interface DistributionResult {
-  metricName: string;
+  eventName: string;
   buckets: DistributionBucket[];
-  totalDataPoints: number;
-  totalDevices: number;
+  totalEvents: number;
+  totalEntities: number;
   statistics: DistributionStatistics;
 }
 
 /**
- * Distribution analysis — shows how metric values are distributed across buckets.
- *
- * 对标神策 Distribution Analysis:
- *   按次数/按数值分段统计分布情况
- *   在 SSAS 中: 展示传感器读值的分布 (如温度 0-10°C: 100条, 10-20°C: 500条, ...)
+ * Distribution analysis — shows how event values are distributed across buckets.
  */
 export async function distributionAnalysis(query: DistributionQuery): Promise<DistributionResult> {
-  const { metricName, buckets: customBuckets, timeRange } = query;
+  const { eventName, buckets: customBuckets, timeRange } = query;
   const tenantId = (query as DistributionQuery & { tenantId?: string }).tenantId;
   const params: unknown[] = [];
   let idx = 1;
 
-  // Default buckets if not specified (auto-range detection)
   let bucketDef: string;
   if (customBuckets && customBuckets.length > 0) {
-    // Use provided bucket boundaries
     const ranges: string[] = [];
     for (let i = 0; i < customBuckets.length - 1; i++) {
       const lo = customBuckets[i];
       const hi = customBuckets[i + 1];
       params.push(lo, hi);
-      ranges.push(`(dp.value >= $${idx++} AND dp.value < $${idx++})`);
+      ranges.push(`(ev.value >= $${idx++} AND ev.value < $${idx++})`);
     }
-    // Last bucket catches everything above
     params.push(customBuckets[customBuckets.length - 1]);
-    ranges.push(`(dp.value >= $${idx++})`);
+    ranges.push(`(ev.value >= $${idx++})`);
     bucketDef = `CASE ${ranges.map((r, i) => `WHEN ${r} THEN ${i}`).join(' ')} END`;
   } else {
-    // Auto-detect: use PostgreSQL width_bucket for ~10 buckets
-    bucketDef = `width_bucket(dp.value, 0, 100, 10) - 1`;
+    bucketDef = `width_bucket(ev.value, 0, 100, 10) - 1`;
   }
 
-  // Main parameters for the query
   const mainParams = [...params];
   const bucketIdx = idx;
-  mainParams.push(metricName, timeRange.start, timeRange.end);
+  mainParams.push(eventName, timeRange.start, timeRange.end);
   if (tenantId) {
     mainParams.push(tenantId);
   }
@@ -74,23 +65,23 @@ export async function distributionAnalysis(query: DistributionQuery): Promise<Di
     SELECT
       ${bucketDef} AS bucket_idx,
       COUNT(*) AS count,
-      COUNT(DISTINCT dp.device_id) AS devices,
-      MIN(dp.value) AS min_val,
-      MAX(dp.value) AS max_val
-    FROM timescale.data_points dp
-    ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-    WHERE dp.metric_name = $${bucketIdx}
-      AND dp.time >= $${bucketIdx + 1}
-      AND dp.time <= $${bucketIdx + 2}
-      ${tenantId ? `AND d.tenant_id = $${bucketIdx + 3}::uuid` : ''}
+      COUNT(DISTINCT ev.entity_id) AS entities,
+      MIN(ev.value) AS min_val,
+      MAX(ev.value) AS max_val
+    FROM timescale.events ev
+    ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+    WHERE ev.event_name = $${bucketIdx}
+      AND ev.time >= $${bucketIdx + 1}
+      AND ev.time <= $${bucketIdx + 2}
+      ${tenantId ? `AND e.tenant_id = $${bucketIdx + 3}::uuid` : ''}
     GROUP BY bucket_idx
     ORDER BY bucket_idx ASC
   `;
 
   const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(sql, ...mainParams);
 
-  const totalDataPoints = rows.reduce((s, r) => s + Number(r.count), 0);
-  const totalDevices = rows.reduce((s, r) => s + Number(r.devices), 0);
+  const totalEvents = rows.reduce((s, r) => s + Number(r.count), 0);
+  const totalEntities = rows.reduce((s, r) => s + Number(r.entities), 0);
 
   const buckets: DistributionBucket[] = rows.map((row) => {
     const count = Number(row.count);
@@ -99,53 +90,49 @@ export async function distributionAnalysis(query: DistributionQuery): Promise<Di
       bucketMax: Number(row.max_val),
       label: `${Number(row.min_val).toFixed(1)} - ${Number(row.max_val).toFixed(1)}`,
       count,
-      devices: Number(row.devices),
-      percentage: totalDataPoints > 0 ? Math.round((count / totalDataPoints) * 10000) / 100 : 0,
+      entities: Number(row.entities),
+      percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 10000) / 100 : 0,
     };
   });
 
-  // Compute statistics
-  const statistics = await computeDistributionStatistics(metricName, timeRange, tenantId);
+  const statistics = await computeDistributionStatistics(eventName, timeRange, tenantId);
 
   return {
-    metricName,
+    eventName,
     buckets,
-    totalDataPoints,
-    totalDevices,
+    totalEvents,
+    totalEntities,
     statistics,
   };
 }
 
-/**
- * Compute distribution statistics: min, max, mean, median, stddev, percentiles.
- */
 async function computeDistributionStatistics(
-  metricName: string,
+  eventName: string,
   timeRange: { start: Date; end: Date },
   tenantId?: string,
 ): Promise<DistributionStatistics> {
-  const params: unknown[] = [metricName, timeRange.start, timeRange.end];
+  const params: unknown[] = [eventName, timeRange.start, timeRange.end];
   let tenantFilter = '';
   if (tenantId) {
     params.push(tenantId);
-    tenantFilter = 'AND d.tenant_id = $4::uuid';
+    tenantFilter = 'AND e.tenant_id = $4::uuid';
   }
 
   const sql = `
     SELECT
-      MIN(dp.value) AS min_val,
-      MAX(dp.value) AS max_val,
-      AVG(dp.value) AS mean_val,
-      STDDEV(dp.value) AS stddev_val,
-      PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY dp.value) AS p25,
-      PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY dp.value) AS median,
-      PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY dp.value) AS p75,
-      PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY dp.value) AS p95
-    FROM timescale.data_points dp
-    ${tenantId ? 'INNER JOIN public.devices d ON d.id = dp.device_id' : ''}
-    WHERE dp.metric_name = $1
-      AND dp.time >= $2
-      AND dp.time <= $3
+      MIN(ev.value) AS min_val,
+      MAX(ev.value) AS max_val,
+      AVG(ev.value) AS mean_val,
+      STDDEV(ev.value) AS stddev_val,
+      PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ev.value) AS p25,
+      PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ev.value) AS median,
+      PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ev.value) AS p75,
+      PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ev.value) AS p95
+    FROM timescale.events ev
+    ${tenantId ? 'INNER JOIN public.entities e ON e.id = ev.entity_id' : ''}
+    WHERE ev.event_name = $1
+      AND ev.time >= $2
+      AND ev.time <= $3
       ${tenantFilter}
   `;
 
@@ -168,11 +155,8 @@ async function computeDistributionStatistics(
   };
 }
 
-/**
- * Batch distribution analysis for multiple metrics.
- */
 export async function batchDistributionAnalysis(
-  metricNames: string[],
+  eventNames: string[],
   timeRange: { start: Date; end: Date },
   options?: {
     buckets?: number[];
@@ -181,13 +165,12 @@ export async function batchDistributionAnalysis(
 ): Promise<DistributionResult[]> {
   const results: DistributionResult[] = [];
 
-  for (const metricName of metricNames) {
+  for (const eventName of eventNames) {
     const result = await distributionAnalysis({
-      metricName,
+      eventName,
       timeRange,
       buckets: options?.buckets,
     });
-    // Inject tenantId if provided
     if (options?.tenantId) {
       (result as unknown as { tenantId?: string }).tenantId = options.tenantId;
     }

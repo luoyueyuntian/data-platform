@@ -9,8 +9,8 @@ import { disconnectCache, initCache } from '@ssas/storage';
 import { errorHandler } from './middleware/error.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { rateLimit, RateLimitPresets, disconnectRateLimit } from './middleware/rate-limit.js';
-import { dataRoutes } from './routes/data.js';
-import { deviceRoutes } from './routes/device.js';
+import { eventRoutes } from './routes/data.js';
+import { entityRoutes } from './routes/device.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { alertRoutes } from './routes/alerts.js';
 import { dashboardRoutes } from './routes/dashboards.js';
@@ -25,10 +25,12 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const corsAllowAll = corsOrigins.includes('*');
 
 // Global middleware
 app.use('*', cors({
   origin: (origin) => {
+    if (corsAllowAll) return origin || '*';
     if (!origin) return corsOrigins[0] ?? 'http://localhost:3000';
     return corsOrigins.includes(origin) ? origin : '';
   },
@@ -66,8 +68,8 @@ app.use('/api/v1/auth/*', rateLimit(RateLimitPresets.auth));
 app.route('/api/v1/auth', authRoutes);
 
 // Mount API routes
-app.route('/api/v1/data', dataRoutes);
-app.route('/api/v1/devices', deviceRoutes);
+app.route('/api/v1/events', eventRoutes);
+app.route('/api/v1/entities', entityRoutes);
 
 // Analytics routes (stricter rate limit - expensive queries)
 app.use('/api/v1/analytics/*', rateLimit(RateLimitPresets.analytics));
@@ -100,12 +102,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   async function shutdown() {
     console.log('[api] shutting down...');
 
-    // Stop accepting new connections
     server.close(() => {
       console.log('[api] HTTP server closed');
     });
 
-    // Disconnect resources
     await disconnectRateLimit();
     await disconnectCache();
     await prisma.$disconnect();
