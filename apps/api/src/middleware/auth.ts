@@ -19,13 +19,17 @@ async function resolveAuthPayload(c: Context): Promise<AuthPayload | undefined> 
 
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
-    const payload = verifyAccessToken(token);
-    return {
-      authType: 'user',
-      userId: payload.sub,
-      tenantId: payload.tenantId,
-      role: payload.role,
-    };
+    try {
+      const payload = verifyAccessToken(token);
+      return {
+        authType: 'user',
+        userId: payload.sub,
+        tenantId: payload.tenantId,
+        role: payload.role,
+      };
+    } catch {
+      throw new HTTPException(401, { message: 'Invalid or expired token' });
+    }
   }
 
   if (apiKeyHeader) {

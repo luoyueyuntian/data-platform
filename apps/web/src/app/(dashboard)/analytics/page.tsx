@@ -8,7 +8,7 @@ type AnalysisMode = 'event' | 'trend' | 'distribution' | 'funnel' | 'retention' 
 
 export default function AnalyticsPage() {
   const [mode, setMode] = useState<AnalysisMode>('event');
-  const [metricName, setMetricName] = useState('temperature');
+  const [eventName, setEventName] = useState('temperature');
   const [aggregation, setAggregation] = useState('avg');
   const [granularity, setGranularity] = useState('1h');
   const [hours, setHours] = useState('24');
@@ -19,11 +19,11 @@ export default function AnalyticsPage() {
   // Funnel-specific params
   const [funnelSteps, setFunnelSteps] = useState('temperature\npressure\nhumidity');
   // Attribution-specific params
-  const [targetMetric, setTargetMetric] = useState('alarm');
-  const [sourceMetrics, setSourceMetrics] = useState('temperature,pressure');
+  const [targetEvent, setTargetEvent] = useState('alarm');
+  const [sourceEvents, setSourceEvents] = useState('temperature,pressure');
   const [attributionModel, setAttributionModel] = useState('last');
   // Retention-specific params
-  const [returnMetric, setReturnMetric] = useState('temperature');
+  const [returnEvent, setReturnEvent] = useState('temperature');
   const [period, setPeriod] = useState('day');
 
   const modes: Array<{ id: AnalysisMode; label: string }> = [
@@ -51,36 +51,36 @@ export default function AnalyticsPage() {
 
       switch (mode) {
         case 'event':
-          path = '/api/v1/analytics/event';
-          body = { metricName, aggregation, granularity, timeRange };
+          path = '/analytics/event';
+          body = { eventName, aggregation, granularity, timeRange };
           break;
         case 'trend':
-          path = '/api/v1/analytics/trend';
-          body = { metricName, aggregation, granularity, timeRange, compareWith: 'prev_period' };
+          path = '/analytics/trend';
+          body = { eventName, aggregation, granularity, timeRange, compareWith: 'prev_period' };
           break;
         case 'distribution':
-          path = '/api/v1/analytics/distribution';
-          body = { metricName, timeRange };
+          path = '/analytics/distribution';
+          body = { eventName, timeRange };
           break;
         case 'funnel':
-          path = '/api/v1/analytics/funnel';
+          path = '/analytics/funnel';
           body = {
             steps: funnelSteps.split('\n').filter(Boolean).map((s, i) => ({
-              name: `Step ${i + 1}`, metricName: s.trim(),
+              name: `Step ${i + 1}`, eventName: s.trim(),
             })),
             windowSeconds: 3600,
             timeRange,
           };
           break;
         case 'retention':
-          path = '/api/v1/analytics/retention';
-          body = { initialMetric: metricName, returnMetric, period, timeRange };
+          path = '/analytics/retention';
+          body = { initialEvent: eventName, returnEvent, period, timeRange };
           break;
         case 'attribution':
-          path = '/api/v1/analytics/attribution';
+          path = '/analytics/attribution';
           body = {
-            targetMetric,
-            attributionMetrics: sourceMetrics.split(',').map((s) => s.trim()),
+            targetEvent,
+            attributionEvents: sourceEvents.split(',').map((s) => s.trim()),
             lookbackSeconds: 3600,
             model: attributionModel,
             timeRange,
@@ -124,8 +124,8 @@ export default function AnalyticsPage() {
         {/* Parameters */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
           <div className="form-group">
-            <label className="form-label">指标</label>
-            <input className="form-input" value={metricName} onChange={(e) => setMetricName(e.target.value)} />
+            <label className="form-label">事件名</label>
+            <input className="form-input" value={eventName} onChange={(e) => setEventName(e.target.value)} />
           </div>
           <div className="form-group">
             <label className="form-label">聚合</label>
@@ -153,15 +153,15 @@ export default function AnalyticsPage() {
           {/* Mode-specific params */}
           {mode === 'funnel' && (
             <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label">漏斗步骤 (每行一个 metric)</label>
+              <label className="form-label">漏斗步骤 (每行一个事件名)</label>
               <textarea className="form-input" rows={3} value={funnelSteps} onChange={(e) => setFunnelSteps(e.target.value)} />
             </div>
           )}
           {mode === 'retention' && (
             <>
               <div className="form-group">
-                <label className="form-label">回访指标</label>
-                <input className="form-input" value={returnMetric} onChange={(e) => setReturnMetric(e.target.value)} />
+                <label className="form-label">回访事件</label>
+                <input className="form-input" value={returnEvent} onChange={(e) => setReturnEvent(e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">周期</label>
@@ -174,12 +174,12 @@ export default function AnalyticsPage() {
           {mode === 'attribution' && (
             <>
               <div className="form-group">
-                <label className="form-label">目标指标</label>
-                <input className="form-input" value={targetMetric} onChange={(e) => setTargetMetric(e.target.value)} />
+                <label className="form-label">目标事件</label>
+                <input className="form-input" value={targetEvent} onChange={(e) => setTargetEvent(e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="form-label">来源指标 (逗号分隔)</label>
-                <input className="form-input" value={sourceMetrics} onChange={(e) => setSourceMetrics(e.target.value)} />
+                <label className="form-label">来源事件 (逗号分隔)</label>
+                <input className="form-input" value={sourceEvents} onChange={(e) => setSourceEvents(e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">归因模型</label>
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
 
       {/* Results */}
       {result && (
-        <ResultDisplay mode={mode} data={result} metricName={metricName} />
+        <ResultDisplay mode={mode} data={result} eventName={eventName} />
       )}
     </div>
   );
@@ -213,18 +213,18 @@ export default function AnalyticsPage() {
 // Result Display
 // ======================
 
-function ResultDisplay({ mode, data, metricName }: { mode: AnalysisMode; data: any; metricName: string }) {
+function ResultDisplay({ mode, data, eventName }: { mode: AnalysisMode; data: any; eventName: string }) {
   // Event analysis: show line chart
   if (mode === 'event' && data.series) {
     const seriesData = {
-      name: metricName,
+      name: eventName,
       data: (data.series as Array<{ time: string; avg?: number }>).map((d) => ({
         time: d.time, value: d.avg ?? 0,
       })),
     };
     return (
       <div className="card">
-        <LineChart title={`${metricName} (${data.aggregation || 'avg'})`} series={[seriesData]} />
+        <LineChart title={`${eventName} (${data.aggregation || 'avg'})`} series={[seriesData]} />
         <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center', marginTop: 8 }}>
           共 {data.total} 个数据点
         </p>
@@ -283,14 +283,14 @@ function ResultDisplay({ mode, data, metricName }: { mode: AnalysisMode; data: a
 
   // Funnel
   if (mode === 'funnel' && data.steps) {
-    const steps = data.steps as Array<{ name: string; deviceCount: number; conversionRate: number; dropRate: number }>;
-    const maxCount = Math.max(...steps.map((s) => s.deviceCount));
+    const steps = data.steps as Array<{ name: string; entityCount: number; conversionRate: number; dropRate: number }>;
+    const maxCount = Math.max(...steps.map((s) => s.entityCount));
     return (
       <div className="card">
         <div className="card-title">漏斗转化</div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '20px 0' }}>
           {steps.map((s, i) => {
-            const widthPct = maxCount > 0 ? (s.deviceCount / maxCount) * 100 : 0;
+            const widthPct = maxCount > 0 ? (s.entityCount / maxCount) * 100 : 0;
             return (
               <div key={i} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{
@@ -298,7 +298,7 @@ function ResultDisplay({ mode, data, metricName }: { mode: AnalysisMode; data: a
                   padding: '8px 16px', borderRadius: 8, textAlign: 'center', color: 'white', fontSize: 13,
                   opacity: i === 0 ? 1 : 0.9 - i * 0.12,
                 }}>
-                  {s.name}: {s.deviceCount} 台 ({s.conversionRate}%)
+                  {s.name}: {s.entityCount} 个 ({s.conversionRate}%)
                 </div>
                 {i < steps.length - 1 && (
                   <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', padding: '2px 0' }}>
@@ -321,7 +321,7 @@ function ResultDisplay({ mode, data, metricName }: { mode: AnalysisMode; data: a
     const periods = data.periods as Array<{ period: number; label: string; retentionRate: number }>;
     return (
       <div className="card">
-        <div className="card-title">留存分析 — 共 {data.totalCohort} 台设备</div>
+        <div className="card-title">留存分析 — 共 {data.totalCohort} 个实体</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 150, padding: '10px 0' }}>
           {periods.map((p, i) => (
             <div key={i} style={{ flex: 1, textAlign: 'center' }}>
@@ -347,12 +347,12 @@ function ResultDisplay({ mode, data, metricName }: { mode: AnalysisMode; data: a
       <div className="card">
         <div className="card-title">归因分析 — {data.model} 模型</div>
         <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-          目标指标: {data.targetMetric} · 总事件: {data.totalTargetEvents || 0}
+          目标事件: {data.targetEvent} · 总事件: {data.totalTargetEvents || 0}
         </p>
-        {(data.contributions as Array<{ sourceMetric: string; weight: number; cooccurrenceCount: number }>).map((c, i) => (
+        {(data.contributions as Array<{ sourceEvent: string; weight: number; cooccurrenceCount: number }>).map((c, i) => (
           <div key={i} style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 2 }}>
-              <span>{c.sourceMetric}</span>
+              <span>{c.sourceEvent}</span>
               <span>{(c.weight * 100).toFixed(1)}% (共现 {c.cooccurrenceCount} 次)</span>
             </div>
             <div style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>

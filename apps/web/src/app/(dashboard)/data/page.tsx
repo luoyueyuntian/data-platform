@@ -5,15 +5,15 @@ import { apiJson, buildApiUrl } from '@/lib/api';
 
 interface DataPoint {
   time: string;
-  deviceId: string;
-  metricName: string;
+  entityId: string;
+  eventName: string;
   avg?: number;
   count: number;
 }
 
 export default function DataQueryPage() {
-  const [deviceIds, setDeviceIds] = useState('');
-  const [metricName, setMetricName] = useState('temperature');
+  const [entityIds, setEntityIds] = useState('');
+  const [eventName, setEventName] = useState('temperature');
   const [granularity, setGranularity] = useState('1h');
   const [aggregation, setAggregation] = useState('avg');
   const [hours, setHours] = useState('24');
@@ -31,15 +31,15 @@ export default function DataQueryPage() {
 
     try {
       const q = new URLSearchParams({
-        deviceIds,
+        entityIds,
         startTime: start,
         endTime: end,
         granularity,
         aggregation,
       });
-      if (metricName) q.set('metricNames', metricName);
+      if (eventName) q.set('eventNames', eventName);
 
-      const json = await apiJson<DataPoint[]>(`/data/query?${q}`);
+      const json = await apiJson<DataPoint[]>(`/events/query?${q}`);
 
       if (json.code === 0) {
         setData(json.data || []);
@@ -57,39 +57,41 @@ export default function DataQueryPage() {
     const end = new Date().toISOString();
     const start = new Date(Date.now() - Number(hours) * 3600000).toISOString();
     const q = new URLSearchParams({
-      deviceIds, startTime: start, endTime: end, format: 'csv',
+      entityIds, startTime: start, endTime: end, format: 'csv',
     });
-    if (metricName) q.set('metricNames', metricName);
-    window.open(buildApiUrl(`/data/export?${q}`), '_blank');
+    if (eventName) q.set('eventNames', eventName);
+    window.open(buildApiUrl(`/events/export?${q}`), '_blank');
   }
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">数据查询</h1>
+        <h1 className="page-title">事件查询</h1>
       </div>
 
       {/* Query form */}
       <div className="card">
         <form onSubmit={handleQuery} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">设备 ID (逗号分隔)</label>
+            <label className="form-label">实体 ID (逗号分隔)</label>
             <input
               className="form-input"
               style={{ width: 280 }}
-              value={deviceIds}
-              onChange={(e) => setDeviceIds(e.target.value)}
+              value={entityIds}
+              onChange={(e) => setEntityIds(e.target.value)}
               placeholder="00000000-0000-0000-0000-000000000100"
               required
             />
           </div>
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">指标</label>
-            <select className="form-select" value={metricName} onChange={(e) => setMetricName(e.target.value)}>
+            <label className="form-label">事件名</label>
+            <select className="form-select" value={eventName} onChange={(e) => setEventName(e.target.value)}>
               <option value="temperature">temperature</option>
               <option value="humidity">humidity</option>
               <option value="pressure">pressure</option>
-              <option value="vibration">vibration</option>
+              <option value="vibration_x">vibration_x</option>
+              <option value="co2">co2</option>
+              <option value="power">power</option>
             </select>
           </div>
           <div className="form-group" style={{ margin: 0 }}>
@@ -148,8 +150,8 @@ export default function DataQueryPage() {
               <thead>
                 <tr>
                   <th>时间</th>
-                  <th>设备</th>
-                  <th>指标</th>
+                  <th>实体</th>
+                  <th>事件名</th>
                   <th>值 ({aggregation})</th>
                   <th>样本数</th>
                 </tr>
@@ -158,8 +160,8 @@ export default function DataQueryPage() {
                 {data.slice(0, 50).map((d, i) => (
                   <tr key={i}>
                     <td>{new Date(d.time).toLocaleString()}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{d.deviceId.slice(0, 8)}...</td>
-                    <td>{d.metricName}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{d.entityId.slice(0, 8)}...</td>
+                    <td>{d.eventName}</td>
                     <td>{(d.avg ?? 0).toFixed(2)}</td>
                     <td>{d.count}</td>
                   </tr>

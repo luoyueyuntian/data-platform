@@ -23,7 +23,7 @@ const createPanelSchema = z.object({
   title: z.string().min(1).max(255),
   type: z.enum(['line', 'bar', 'pie', 'gauge', 'table', 'heatmap', 'scatter', 'stat', 'area']),
   query: z.object({
-    metricNames: z.array(z.string()),
+    eventNames: z.array(z.string()),
     aggregation: z.string().default('avg'),
     granularity: z.string().default('1h'),
     filters: z.record(z.string()).optional(),

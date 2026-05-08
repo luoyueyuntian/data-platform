@@ -6,7 +6,7 @@ import { LineChart, GaugeChart, StatCard } from '@ssas/ui';
 import { apiFetch, apiJson } from '@/lib/api';
 
 interface PanelQuery {
-  metricNames: string[];
+  eventNames: string[];
   aggregation: string;
   granularity: string;
   timeRange: string;
@@ -92,7 +92,7 @@ export default function DashboardDetailPage() {
 function PanelCard({ panel, dashboardId, onDeleted }: { panel: Panel; dashboardId: string; onDeleted: () => void }) {
   const [data, setData] = useState<Array<{ time: string; avg?: number }>>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [latest, setLatest] = useState<Array<{ metricName: string; last: number }>>([]);
+  const [latest, setLatest] = useState<Array<{ eventName: string; last: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,18 +100,18 @@ function PanelCard({ panel, dashboardId, onDeleted }: { panel: Panel; dashboardI
       try {
         const now = new Date();
         const start = new Date(now.getTime() - parseTimeRange(panel.query.timeRange));
-        const metricNames = panel.query.metricNames.join(',');
+        const eventNames = panel.query.eventNames.join(',');
 
         const q = new URLSearchParams({
-          deviceIds: '*',
-          metricNames,
+          entityIds: '*',
+          eventNames,
           startTime: start.toISOString(),
           endTime: now.toISOString(),
           granularity: panel.query.granularity || '1h',
           aggregation: panel.query.aggregation || 'avg',
         });
 
-        const json = await apiJson<Array<{ time: string; avg?: number }>>(`/data/query?${q}`);
+        const json = await apiJson<Array<{ time: string; avg?: number }>>(`/events/query?${q}`);
         if (json.code === 0) setData(json.data || []);
       } catch (err) {
         console.error(err);
@@ -122,8 +122,8 @@ function PanelCard({ panel, dashboardId, onDeleted }: { panel: Panel; dashboardI
     fetchData();
   }, [panel]);
 
-  const series = panel.query.metricNames.map((mn) => ({
-    name: mn,
+  const series = panel.query.eventNames.map((en) => ({
+    name: en,
     data: data.filter((d) => d.avg !== undefined).map((d) => ({ time: d.time, value: d.avg ?? 0 })),
   }));
 
@@ -146,7 +146,7 @@ function PanelCard({ panel, dashboardId, onDeleted }: { panel: Panel; dashboardI
       ) : panel.type === 'gauge' ? (
         <GaugeChart value={latest[0]?.last ?? 0} height={panel.position.h * 50} />
       ) : panel.type === 'stat' ? (
-        <StatCard title={panel.query.metricNames.join(', ')} value={latest[0]?.last?.toFixed(2) ?? '—'}
+        <StatCard title={panel.query.eventNames.join(', ')} value={latest[0]?.last?.toFixed(2) ?? '—'}
           subtitle={`${panel.query.aggregation} · ${panel.query.granularity}`} />
       ) : (
         <LineChart series={series} loading={loading} height={200} />
@@ -164,7 +164,7 @@ function AddPanelForm({ dashboardId, onClose, onAdded }: {
 }) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<ChartType>('line');
-  const [metricNames, setMetricNames] = useState('temperature');
+  const [eventNames, setEventNames] = useState('temperature');
   const [aggregation, setAggregation] = useState('avg');
   const [granularity, setGranularity] = useState('1h');
   const [timeRange, setTimeRange] = useState('last_24h');
@@ -175,7 +175,7 @@ function AddPanelForm({ dashboardId, onClose, onAdded }: {
     if (!title.trim()) return;
     setSaving(true);
     try {
-      const query = { metricNames: metricNames.split(',').map((s) => s.trim()), aggregation, granularity, timeRange };
+      const query = { eventNames: eventNames.split(',').map((s) => s.trim()), aggregation, granularity, timeRange };
       const json = await apiJson(`/dashboards/${dashboardId}/panels`, {
         method: 'POST',
         body: JSON.stringify({ title, type, query, position: { x: 0, y: 0, w: type === 'stat' ? 1 : 2, h: type === 'stat' ? 1 : 2 } }),
@@ -199,8 +199,8 @@ function AddPanelForm({ dashboardId, onClose, onAdded }: {
               <option value="line">折线图</option><option value="area">面积图</option>
               <option value="gauge">仪表盘</option><option value="stat">统计数值</option>
             </select></div>
-          <div className="form-group"><label className="form-label">指标</label>
-            <input className="form-input" value={metricNames} onChange={(e) => setMetricNames(e.target.value)} placeholder="temperature,humidity" /></div>
+          <div className="form-group"><label className="form-label">事件名</label>
+            <input className="form-input" value={eventNames} onChange={(e) => setEventNames(e.target.value)} placeholder="temperature,humidity" /></div>
           <div className="form-group"><label className="form-label">聚合</label>
             <select className="form-select" value={aggregation} onChange={(e) => setAggregation(e.target.value)}>
               <option value="avg">avg</option><option value="max">max</option><option value="min">min</option></select></div>

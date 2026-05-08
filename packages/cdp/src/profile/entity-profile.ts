@@ -50,14 +50,19 @@ export async function buildEntityProfile(entityId: string): Promise<EntityProfil
     last_time: Date;
     avg_interval: number;
   }[]>(`
+    WITH base AS (
+      SELECT time, quality,
+        EXTRACT(EPOCH FROM time - LAG(time) OVER (ORDER BY time)) AS gap
+      FROM timescale.events
+      WHERE entity_id = $1::uuid AND time >= $2
+    )
     SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE quality < 100) AS abnormal,
       MIN(time) AS first_time,
       MAX(time) AS last_time,
-      EXTRACT(EPOCH FROM AVG(time - LAG(time) OVER (ORDER BY time))) AS avg_interval
-    FROM timescale.events
-    WHERE entity_id = $1 AND time >= $2
+      AVG(gap) AS avg_interval
+    FROM base
   `, entityId, sevenDaysAgo);
 
   const row = stats[0];

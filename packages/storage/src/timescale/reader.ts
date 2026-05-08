@@ -53,7 +53,7 @@ async function queryEventsRaw(query: EventQuery): Promise<AggregatedEvent[]> {
   let paramIndex = 1;
 
   // Entity filter
-  conditions.push(`entity_id = ANY($${paramIndex++})`);
+  conditions.push(`entity_id = ANY($${paramIndex++}::uuid[])`);
   params.push(entityIds);
 
   // Time range
@@ -71,7 +71,7 @@ async function queryEventsRaw(query: EventQuery): Promise<AggregatedEvent[]> {
   // Tags filter (JSONB) — only on raw table
   if (hasTagsFilter) {
     for (const [key, value] of Object.entries(filters!)) {
-      conditions.push(`tags @> $${paramIndex++}`);
+      conditions.push(`tags @> $${paramIndex++}::jsonb`);
       params.push(JSON.stringify({ [key]: value }));
     }
   }
@@ -112,7 +112,7 @@ async function queryEventsRaw(query: EventQuery): Promise<AggregatedEvent[]> {
  * Get latest value for each event of an entity
  */
 export async function getLatestEvents(entityId: string, eventName?: string): Promise<AggregatedEvent[]> {
-  const conditions: string[] = ['entity_id = $1'];
+  const conditions: string[] = ['entity_id = $1::uuid'];
   const params: unknown[] = [entityId];
   let paramIndex = 2;
 

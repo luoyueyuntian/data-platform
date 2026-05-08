@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Website Audit'
+  short_description: 'Crawl a URL and write an audit report'
+  default_prompt: 'Use $audit-website to analyze https://example.com, summarize the site features, and write a professional audit report.'
