@@ -105,7 +105,7 @@ model Entity {
   id          String   @id @default(uuid()) @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid
   name        String   @db.VarChar(255)
-  entityKey   String   @unique @db.VarChar(255) // unique identifier (serial number, user ID, etc.)
+  entityKey   String   @unique @map("entity_key") @db.VarChar(255) // unique identifier (serial number, user ID, etc.)
   type        String   @default("custom") @db.VarChar(50)
   status      String   @default("inactive") @db.VarChar(20) // active | inactive | error | disabled | maintenance
   groupId     String?  @map("group_id") @db.Uuid
