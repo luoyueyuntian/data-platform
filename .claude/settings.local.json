@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:manual.sensorsdata.cn)",
+      "WebSearch",
+      "WebFetch(domain:www.sensorsdata.cn)"
+    ]
+  }
+}
